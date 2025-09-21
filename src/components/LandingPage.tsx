@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Card, CardContent } from "@/components/ui/card";
 import { GraduationCap, Users, UserCheck, Crown, Shield, User } from "lucide-react";
 import collegeLogo from "@/assets/lendi-logo.png";
+import heroBackground from "@/assets/lendi-hero-bg.jpg";
 
 interface Role {
   id: string;
@@ -71,12 +72,12 @@ export default function LandingPage({ onRoleSelect }: LandingPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-primary-glow to-primary relative overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-20 left-20 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-primary-light rounded-full blur-3xl"></div>
-      </div>
+    <div 
+      className="min-h-screen relative overflow-hidden bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: `url(${heroBackground})` }}
+    >
+      {/* Dark overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/50"></div>
       
       <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
         <div className="text-center max-w-4xl mx-auto">
