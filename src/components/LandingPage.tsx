@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Card, CardContent } from "@/components/ui/card";
 import { GraduationCap, Users, UserCheck, Crown, Shield, User } from "lucide-react";
 import collegeLogo from "@/assets/lendi-logo.png";
-import heroBackground from "@/assets/lendi-hero-bg.jpg";
+import heroBackground from "@/assets/lendi-campus.png";
 
 interface Role {
   id: string;
