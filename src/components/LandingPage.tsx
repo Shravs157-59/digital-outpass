@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { GraduationCap, Users, UserCheck, Crown, Shield, User } from "lucide-react";
-import collegeLogo from "@/assets/college-logo.png";
+import collegeLogo from "@/assets/lendi-logo.png";
 
 interface Role {
   id: string;
@@ -87,11 +87,11 @@ export default function LandingPage({ onRoleSelect }: LandingPageProps) {
               alt="College Logo" 
               className="w-32 h-24 mx-auto mb-6 drop-shadow-2xl"
             />
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-4 tracking-tight">
-              Digital College
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
+              LENDI INSTITUTE OF ENGINEERING AND TECHNOLOGY
             </h1>
             <h2 className="text-3xl md:text-4xl font-semibold text-primary-light mb-6">
-              Outpass System
+              Digital Outpass Approval System
             </h2>
             <p className="text-xl text-primary-light/90 max-w-2xl mx-auto leading-relaxed">
               Streamlined digital outpass approval system for seamless campus exit management
