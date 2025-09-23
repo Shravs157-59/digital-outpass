@@ -30,7 +30,9 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
     email: "",
     regNo: "",
     employeeId: "",
+    securityId: "",
     fullName: "",
+    phoneNumber: "",
     dob: "",
     dept: "",
     year: "",
@@ -370,40 +372,40 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                       </div>
                     </>
                   ) : (
-                    // Security Registration Form (existing fields)
+                    // Security Registration Form
                     <>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="email">Email</Label>
+                          <Label htmlFor="securityId">Security ID</Label>
                           <Input
-                            id="email"
-                            type="email"
-                            placeholder="your.email@college.edu"
-                            value={formData.email}
-                            onChange={(e) => handleInputChange("email", e.target.value)}
+                            id="securityId"
+                            placeholder="SEC2024001"
+                            value={formData.securityId}
+                            onChange={(e) => handleInputChange("securityId", e.target.value)}
                             required
                           />
                         </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="employeeId">Employee ID</Label>
+                          <Label htmlFor="fullName">Full Name</Label>
                           <Input
-                            id="employeeId"
-                            placeholder="SEC2024001"
-                            value={formData.employeeId}
-                            onChange={(e) => handleInputChange("employeeId", e.target.value)}
+                            id="fullName"
+                            placeholder="Enter your full name"
+                            value={formData.fullName}
+                            onChange={(e) => handleInputChange("fullName", e.target.value)}
                             required
                           />
                         </div>
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="fullName">Full Name</Label>
+                        <Label htmlFor="phoneNumber">Phone Number</Label>
                         <Input
-                          id="fullName"
-                          placeholder="Enter your full name"
-                          value={formData.fullName}
-                          onChange={(e) => handleInputChange("fullName", e.target.value)}
+                          id="phoneNumber"
+                          type="tel"
+                          placeholder="Enter your phone number"
+                          value={formData.phoneNumber}
+                          onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
                           required
                         />
                       </div>
