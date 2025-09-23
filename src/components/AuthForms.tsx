@@ -15,6 +15,7 @@ interface AuthFormsProps {
 
 const departments = [
   "Computer Science & Engineering",
+  "Computer Science & Engineering (CSM)",
   "Electronics & Communication",
   "Mechanical Engineering",
   "Civil Engineering",
@@ -23,7 +24,36 @@ const departments = [
 ];
 
 const years = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-const sections = ["A", "B", "C", "D"];
+
+// Dynamic sections based on department and year
+const getDepartmentSections = (dept: string, year: string) => {
+  const yearNum = parseInt(year.charAt(0));
+  
+  switch (dept) {
+    case "Computer Science & Engineering":
+      if (yearNum === 1 || yearNum === 2) return ["A", "B", "C", "D", "E", "F"];
+      if (yearNum === 3) return ["A", "B", "C", "D"];
+      if (yearNum === 4) return ["A", "B", "C"];
+      return [];
+    
+    case "Computer Science & Engineering (CSM)":
+      return ["A"];
+    
+    case "Electronics & Communication":
+    case "Electrical Engineering":
+      return ["A", "B", "C"];
+    
+    case "Mechanical Engineering":
+      return ["A", "B"];
+    
+    case "Civil Engineering":
+    case "Information Technology":
+      return ["A", "B", "C", "D"];
+    
+    default:
+      return [];
+  }
+};
 
 export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
   const [formData, setFormData] = useState({
@@ -43,7 +73,14 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
   });
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      // Clear section when department or year changes for faculty
+      if (isFaculty && (field === "dept" || field === "year")) {
+        newData.section = "";
+      }
+      return newData;
+    });
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,21 +365,25 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                           </Select>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="section">Section</Label>
-                          <Select value={formData.section} onValueChange={(value) => handleInputChange("section", value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select section" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sections.map((section) => (
-                                <SelectItem key={section} value={section}>
-                                  Section {section}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="section">Section</Label>
+                            <Select 
+                              value={formData.section} 
+                              onValueChange={(value) => handleInputChange("section", value)}
+                              disabled={!formData.dept || !formData.year}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select section" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getDepartmentSections(formData.dept, formData.year).map((section) => (
+                                  <SelectItem key={section} value={section}>
+                                    Section {section}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">
