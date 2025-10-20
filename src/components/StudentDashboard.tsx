@@ -1,24 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Clock, Download, Plus, User, LogOut, QrCode } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface OutpassRequest {
   id: string;
-  reason: string;
-  dateApplied: string;
-  fromDate: string;
-  toDate: string;
-  status: "Pending" | "Approved" | "Rejected";
-  approvedBy?: string;
-  qrCode?: string;
+  purpose: string;
+  created_at: string;
+  from_date: string;
+  to_date: string;
+  status: string;
+  approved_by?: string | null;
+  qr_code?: string | null;
+  approved_at?: string | null;
 }
 
 interface StudentDashboardProps {
@@ -27,78 +29,129 @@ interface StudentDashboardProps {
 }
 
 export default function StudentDashboard({ userData, onLogout }: StudentDashboardProps) {
-  const [outpassRequests, setOutpassRequests] = useState<OutpassRequest[]>([
-    {
-      id: "OUT001",
-      reason: "Medical Appointment",
-      dateApplied: "2024-01-15",
-      fromDate: "2024-01-20",
-      toDate: "2024-01-20",
-      status: "Approved",
-      approvedBy: "Dr. Smith (Class In-Charge)",
-      qrCode: "QR123456"
-    },
-    {
-      id: "OUT002", 
-      reason: "Family Function",
-      dateApplied: "2024-01-18",
-      fromDate: "2024-01-25",
-      toDate: "2024-01-26",
-      status: "Pending"
-    }
-  ]);
+  const [outpassRequests, setOutpassRequests] = useState<OutpassRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const [newRequest, setNewRequest] = useState({
-    reason: "",
+    purpose: "",
     fromDate: "",
-    toDate: "",
-    destination: "",
-    contactNumber: "",
-    emergencyContact: ""
+    toDate: ""
   });
 
   const [showNewRequestDialog, setShowNewRequestDialog] = useState(false);
 
+  // Fetch student's outpass requests
+  const fetchRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('outpass_requests')
+        .select('*')
+        .eq('student_id', userData.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setOutpassRequests(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('student-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'outpass_requests',
+          filter: `student_id=eq.${userData.id}`
+        },
+        (payload) => {
+          console.log('Realtime update:', payload);
+          fetchRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userData.id]);
+
   const currentMonth = new Date().getMonth();
   const monthlyLimit = 4;
   const usedThisMonth = outpassRequests.filter(req => 
-    new Date(req.dateApplied).getMonth() === currentMonth
+    new Date(req.created_at).getMonth() === currentMonth
   ).length;
 
-  const handleSubmitRequest = () => {
-    const request: OutpassRequest = {
-      id: `OUT${String(outpassRequests.length + 1).padStart(3, "0")}`,
-      reason: newRequest.reason,
-      dateApplied: new Date().toISOString().split('T')[0],
-      fromDate: newRequest.fromDate,
-      toDate: newRequest.toDate,
-      status: usedThisMonth >= monthlyLimit ? "Pending" : "Pending"
-    };
+  const handleSubmitRequest = async () => {
+    if (!newRequest.purpose || !newRequest.fromDate || !newRequest.toDate) {
+      toast({
+        title: "Error",
+        description: "Please fill all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    setOutpassRequests(prev => [request, ...prev]);
-    setNewRequest({
-      reason: "",
-      fromDate: "",
-      toDate: "",
-      destination: "",
-      contactNumber: "",
-      emergencyContact: ""
-    });
-    setShowNewRequestDialog(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('request-outpass', {
+        body: {
+          purpose: newRequest.purpose,
+          from_date: new Date(newRequest.fromDate).toISOString(),
+          to_date: new Date(newRequest.toDate).toISOString()
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Outpass request submitted successfully"
+      });
+
+      setNewRequest({
+        purpose: "",
+        fromDate: "",
+        toDate: ""
+      });
+      setShowNewRequestDialog(false);
+      fetchRequests();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Approved": return "bg-success text-success-foreground";
-      case "Rejected": return "bg-destructive text-destructive-foreground";
+    switch (status.toLowerCase()) {
+      case "approved": return "bg-success text-success-foreground";
+      case "rejected": return "bg-destructive text-destructive-foreground";
       default: return "bg-warning text-warning-foreground";
     }
   };
 
   const generateQRCode = (requestId: string) => {
-    // Simulate QR code generation
-    alert(`QR Code generated for ${requestId}. In a real app, this would generate a downloadable QR code.`);
+    alert(`QR Code for ${requestId}. Implementation needed for actual QR generation.`);
   };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary-light/10">
@@ -110,7 +163,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
               <User className="w-8 h-8 text-primary" />
               <div>
                 <h1 className="text-xl font-semibold">Student Dashboard</h1>
-                <p className="text-muted-foreground text-sm">Welcome, {userData.fullName || "Student"}</p>
+                <p className="text-muted-foreground text-sm">Welcome, {userData.full_name || "Student"}</p>
               </div>
             </div>
             <Button variant="outline" onClick={onLogout}>
@@ -143,7 +196,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-warning">
-                {outpassRequests.filter(req => req.status === "Pending").length}
+                {outpassRequests.filter(req => req.status === "pending").length}
               </div>
               <p className="text-xs text-muted-foreground mt-2">Awaiting approval</p>
             </CardContent>
@@ -151,13 +204,11 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Approved Today</CardTitle>
+              <CardTitle className="text-sm font-medium">Approved</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-success">
-                {outpassRequests.filter(req => 
-                  req.status === "Approved" && req.fromDate === new Date().toISOString().split('T')[0]
-                ).length}
+                {outpassRequests.filter(req => req.status === "approved").length}
               </div>
               <p className="text-xs text-muted-foreground mt-2">Ready to use</p>
             </CardContent>
@@ -179,73 +230,37 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                 <DialogTitle>Apply for Outpass</DialogTitle>
               </DialogHeader>
               
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid gap-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reason">Reason</Label>
-                  <Select value={newRequest.reason} onValueChange={(value) => 
-                    setNewRequest(prev => ({ ...prev, reason: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="medical">Medical Appointment</SelectItem>
-                      <SelectItem value="family">Family Function</SelectItem>
-                      <SelectItem value="personal">Personal Work</SelectItem>
-                      <SelectItem value="emergency">Emergency</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="destination">Destination</Label>
-                  <Input
-                    id="destination"
-                    placeholder="Where are you going?"
-                    value={newRequest.destination}
-                    onChange={(e) => setNewRequest(prev => ({ ...prev, destination: e.target.value }))}
+                  <Label htmlFor="purpose">Purpose</Label>
+                  <Textarea
+                    id="purpose"
+                    placeholder="Reason for outpass"
+                    value={newRequest.purpose}
+                    onChange={(e) => setNewRequest(prev => ({ ...prev, purpose: e.target.value }))}
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="fromDate">From Date</Label>
-                  <Input
-                    id="fromDate"
-                    type="date"
-                    value={newRequest.fromDate}
-                    onChange={(e) => setNewRequest(prev => ({ ...prev, fromDate: e.target.value }))}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="toDate">To Date</Label>
-                  <Input
-                    id="toDate"
-                    type="date"
-                    value={newRequest.toDate}
-                    onChange={(e) => setNewRequest(prev => ({ ...prev, toDate: e.target.value }))}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="contactNumber">Contact Number</Label>
-                  <Input
-                    id="contactNumber"
-                    placeholder="Your contact number"
-                    value={newRequest.contactNumber}
-                    onChange={(e) => setNewRequest(prev => ({ ...prev, contactNumber: e.target.value }))}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="emergencyContact">Emergency Contact</Label>
-                  <Input
-                    id="emergencyContact"
-                    placeholder="Emergency contact number"
-                    value={newRequest.emergencyContact}
-                    onChange={(e) => setNewRequest(prev => ({ ...prev, emergencyContact: e.target.value }))}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fromDate">From Date & Time</Label>
+                    <Input
+                      id="fromDate"
+                      type="datetime-local"
+                      value={newRequest.fromDate}
+                      onChange={(e) => setNewRequest(prev => ({ ...prev, fromDate: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="toDate">To Date & Time</Label>
+                    <Input
+                      id="toDate"
+                      type="datetime-local"
+                      value={newRequest.toDate}
+                      onChange={(e) => setNewRequest(prev => ({ ...prev, toDate: e.target.value }))}
+                    />
+                  </div>
                 </div>
               </div>
               
@@ -266,34 +281,43 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
 
         {/* Requests List */}
         <div className="space-y-4">
-          {outpassRequests.map((request) => (
-            <Card key={request.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-semibold text-lg">#{request.id}</h3>
-                    <p className="text-muted-foreground">{request.reason}</p>
+          {outpassRequests.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <p className="text-muted-foreground">No outpass requests yet. Create your first request!</p>
+              </CardContent>
+            </Card>
+          ) : (
+            outpassRequests.map((request) => (
+              <Card key={request.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-semibold text-lg">#{request.id.slice(0, 8)}</h3>
+                      <p className="text-muted-foreground">{request.purpose}</p>
+                    </div>
+                    <Badge className={getStatusColor(request.status)}>
+                      {request.status.toUpperCase()}
+                    </Badge>
                   </div>
-                  <Badge className={getStatusColor(request.status)}>
-                    {request.status}
-                  </Badge>
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span>Applied: {request.dateApplied}</span>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span>Applied: {new Date(request.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span>From: {new Date(request.from_date).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span>To: {new Date(request.to_date).toLocaleString()}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span>From: {request.fromDate}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span>To: {request.toDate}</span>
-                  </div>
-                  {request.status === "Approved" && (
-                    <div className="flex space-x-2">
+                  
+                  {request.status === "approved" && (
+                    <div className="flex space-x-2 mt-4">
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -308,16 +332,16 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                       </Button>
                     </div>
                   )}
-                </div>
-                
-                {request.approvedBy && (
-                  <p className="text-xs text-success mt-2">
-                    Approved by: {request.approvedBy}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  {request.approved_at && (
+                    <p className="text-xs text-success mt-2">
+                      Approved on: {new Date(request.approved_at).toLocaleString()}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </div>

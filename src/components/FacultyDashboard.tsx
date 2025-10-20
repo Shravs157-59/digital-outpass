@@ -1,25 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, User, LogOut, Calendar, Users, TrendingUp } from "lucide-react";
+import { CheckCircle, XCircle, Clock, User, LogOut, Calendar } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 
 interface PendingRequest {
   id: string;
-  studentName: string;
-  regNo: string;
-  reason: string;
-  dateApplied: string;
-  fromDate: string;
-  toDate: string;
-  destination: string;
-  contactNumber: string;
-  department: string;
-  year: string;
+  student_id: string;
+  purpose: string;
+  created_at: string;
+  from_date: string;
+  to_date: string;
+  status: string;
+  student?: {
+    full_name: string;
+    reg_no: string;
+    department: string;
+    year: string;
+  };
 }
 
 interface FacultyDashboardProps {
@@ -28,57 +32,146 @@ interface FacultyDashboardProps {
 }
 
 export default function FacultyDashboard({ userData, onLogout }: FacultyDashboardProps) {
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([
-    {
-      id: "OUT003",
-      studentName: "John Doe",
-      regNo: "REG2023001",
-      reason: "Medical Appointment",
-      dateApplied: "2024-01-20",
-      fromDate: "2024-01-22",
-      toDate: "2024-01-22",
-      destination: "City Hospital",
-      contactNumber: "+91 9876543210",
-      department: "Computer Science",
-      year: "3rd Year"
-    },
-    {
-      id: "OUT004",
-      studentName: "Jane Smith",
-      regNo: "REG2023002", 
-      reason: "Family Function",
-      dateApplied: "2024-01-20",
-      fromDate: "2024-01-25",
-      toDate: "2024-01-26",
-      destination: "Home Town",
-      contactNumber: "+91 9876543211",
-      department: "Computer Science",
-      year: "2nd Year"
-    }
-  ]);
-
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
   const [remarks, setRemarks] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    pending: 0,
+    approvedToday: 0,
+    rejectedToday: 0,
+    totalThisWeek: 0
+  });
+  const { toast } = useToast();
+
+  const fetchRequests = async () => {
+    try {
+      // Fetch pending requests visible to this role
+      const { data, error } = await supabase
+        .from('outpass_requests')
+        .select(`
+          *,
+          student:profiles!student_id (
+            full_name,
+            reg_no,
+            department,
+            year
+          )
+        `)
+        .eq('status', 'pending')
+        .contains('visible_to_roles', [userData.role])
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setPendingRequests(data as any || []);
+
+      // Calculate stats
+      const today = new Date().toISOString().split('T')[0];
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: approvedToday } = await supabase
+        .from('outpass_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .eq('approved_by', userData.id)
+        .gte('approved_at', today);
+
+      const { data: rejectedToday } = await supabase
+        .from('outpass_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'rejected')
+        .eq('rejected_by', userData.id)
+        .gte('rejected_at', today);
+
+      const { data: weeklyTotal } = await supabase
+        .from('outpass_requests')
+        .select('id', { count: 'exact', head: true })
+        .or(`approved_by.eq.${userData.id},rejected_by.eq.${userData.id}`)
+        .gte('created_at', weekAgo);
+
+      setStats({
+        pending: data?.length || 0,
+        approvedToday: approvedToday?.length || 0,
+        rejectedToday: rejectedToday?.length || 0,
+        totalThisWeek: weeklyTotal?.length || 0
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('faculty-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'outpass_requests'
+        },
+        (payload) => {
+          console.log('Realtime update:', payload);
+          fetchRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userData.id, userData.role]);
 
   const handleAction = (request: PendingRequest, action: "approve" | "reject") => {
     setSelectedRequest(request);
     setActionType(action);
   };
 
-  const confirmAction = () => {
-    if (selectedRequest && actionType) {
-      setPendingRequests(prev => prev.filter(req => req.id !== selectedRequest.id));
+  const confirmAction = async () => {
+    if (!selectedRequest || !actionType) return;
+
+    try {
+      const { error } = await supabase.functions.invoke('process-request', {
+        body: {
+          request_id: selectedRequest.id,
+          action: actionType === "approve" ? "approved" : "rejected",
+          comments: remarks
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Request ${actionType === "approve" ? "approved" : "rejected"} successfully`
+      });
+
       setSelectedRequest(null);
       setActionType(null);
       setRemarks("");
-      // In real app, would send notification to student
+      fetchRequests();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   };
 
   const getRoleDisplayName = () => {
     const roleNames: Record<string, string> = {
-      classincharge: "Class In-Charge",
+      class_incharge: "Class In-Charge",
       coordinator: "Coordinator", 
       hod: "Head of Department",
       principal: "Principal"
@@ -86,12 +179,9 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
     return roleNames[userData.role] || userData.role;
   };
 
-  const stats = {
-    pending: pendingRequests.length,
-    approvedToday: 5,
-    rejectedToday: 1,
-    totalThisWeek: 23
-  };
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-success/5 via-background to-success/10">
@@ -103,7 +193,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
               <User className="w-8 h-8 text-success" />
               <div>
                 <h1 className="text-xl font-semibold">{getRoleDisplayName()} Dashboard</h1>
-                <p className="text-muted-foreground text-sm">Welcome, {userData.fullName || "Faculty"}</p>
+                <p className="text-muted-foreground text-sm">Welcome, {userData.full_name || "Faculty"}</p>
               </div>
             </div>
             <Button variant="outline" onClick={onLogout}>
@@ -159,9 +249,8 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         </div>
 
         <Tabs defaultValue="pending" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="pending">Pending Requests</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
@@ -173,67 +262,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
               </Badge>
             </div>
 
-            {pendingRequests.map((request) => (
-              <Card key={request.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-4">
-                        <h3 className="font-semibold text-lg">#{request.id}</h3>
-                        <Badge variant="outline">{request.reason}</Badge>
-                      </div>
-                      <p className="text-muted-foreground">
-                        {request.studentName} ({request.regNo}) - {request.department}, {request.year}
-                      </p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button 
-                        variant="success"
-                        size="sm"
-                        onClick={() => handleAction(request, "approve")}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Approve
-                      </Button>
-                      <Button 
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleAction(request, "reject")}
-                      >
-                        <XCircle className="w-4 h-4 mr-1" />
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span>Applied: {request.dateApplied}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span>From: {request.fromDate}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span>To: {request.toDate}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Destination: </span>
-                      <span>{request.destination}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3 text-sm">
-                    <span className="text-muted-foreground">Contact: </span>
-                    <span>{request.contactNumber}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-
-            {pendingRequests.length === 0 && (
+            {pendingRequests.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
                   <CheckCircle className="w-12 h-12 text-success mx-auto mb-4" />
@@ -241,77 +270,59 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                   <p className="text-muted-foreground">No pending requests at the moment.</p>
                 </CardContent>
               </Card>
+            ) : (
+              pendingRequests.map((request) => (
+                <Card key={request.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-4">
+                          <h3 className="font-semibold text-lg">#{request.id.slice(0, 8)}</h3>
+                          <Badge variant="outline">{request.purpose}</Badge>
+                        </div>
+                        <p className="text-muted-foreground">
+                          {request.student?.full_name} ({request.student?.reg_no}) - {request.student?.department}, {request.student?.year}
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleAction(request, "approve")}
+                          className="bg-success hover:bg-success/90"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Approve
+                        </Button>
+                        <Button 
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleAction(request, "reject")}
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span>Applied: {new Date(request.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <span>From: {new Date(request.from_date).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <span>To: {new Date(request.to_date).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <TrendingUp className="w-5 h-5" />
-                    <span>Weekly Trends</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span>Monday</span>
-                      <span className="font-semibold">8 requests</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tuesday</span>
-                      <span className="font-semibold">12 requests</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Wednesday</span>
-                      <span className="font-semibold">15 requests</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Thursday</span>
-                      <span className="font-semibold">10 requests</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Friday</span>
-                      <span className="font-semibold">18 requests</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Users className="w-5 h-5" />
-                    <span>Top Reasons</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span>Medical</span>
-                      <Badge variant="outline">35%</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Family Function</span>
-                      <Badge variant="outline">28%</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Personal Work</span>
-                      <Badge variant="outline">20%</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Emergency</span>
-                      <Badge variant="outline">12%</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Other</span>
-                      <Badge variant="outline">5%</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
           <TabsContent value="history" className="mt-6">
@@ -321,22 +332,9 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                 <CardDescription>Your approval/rejection history</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">OUT002 - Alice Johnson</p>
-                      <p className="text-sm text-muted-foreground">Medical Appointment</p>
-                    </div>
-                    <Badge className="bg-success text-success-foreground">Approved</Badge>
-                  </div>
-                  <div className="flex justify-between items-center p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">OUT001 - Bob Wilson</p>
-                      <p className="text-sm text-muted-foreground">Personal Work</p>
-                    </div>
-                    <Badge className="bg-destructive text-destructive-foreground">Rejected</Badge>
-                  </div>
-                </div>
+                <p className="text-muted-foreground text-center py-8">
+                  History view - fetches recent approvals/rejections from database
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -348,16 +346,16 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionType === "approve" ? "Approve" : "Reject"} Request #{selectedRequest?.id}
+              {actionType === "approve" ? "Approve" : "Reject"} Request
             </DialogTitle>
           </DialogHeader>
           
           {selectedRequest && (
             <div className="space-y-4">
               <div className="bg-muted p-4 rounded-lg">
-                <p><strong>Student:</strong> {selectedRequest.studentName}</p>
-                <p><strong>Reason:</strong> {selectedRequest.reason}</p>
-                <p><strong>Dates:</strong> {selectedRequest.fromDate} to {selectedRequest.toDate}</p>
+                <p><strong>Student:</strong> {selectedRequest.student?.full_name}</p>
+                <p><strong>Purpose:</strong> {selectedRequest.purpose}</p>
+                <p><strong>Dates:</strong> {new Date(selectedRequest.from_date).toLocaleString()} to {new Date(selectedRequest.to_date).toLocaleString()}</p>
               </div>
               
               <div className="space-y-2">
@@ -372,9 +370,9 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
               
               <div className="flex space-x-2">
                 <Button 
-                  variant={actionType === "approve" ? "success" : "destructive"}
+                  variant={actionType === "approve" ? "default" : "destructive"}
                   onClick={confirmAction}
-                  className="flex-1"
+                  className={actionType === "approve" ? "flex-1 bg-success hover:bg-success/90" : "flex-1"}
                 >
                   Confirm {actionType === "approve" ? "Approval" : "Rejection"}
                 </Button>

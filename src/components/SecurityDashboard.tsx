@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,15 +7,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, QrCode, LogOut, User, Clock, CheckCircle, XCircle, Search } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface LogEntry {
   id: string;
-  studentName: string;
-  regNo: string;
-  action: "OUT" | "IN";
-  timestamp: string;
-  gate: string;
-  outpassId: string;
+  request_id: string;
+  security_id: string;
+  action: string;
+  verified_at: string;
+  notes?: string;
+  outpass_requests?: {
+    id: string;
+    purpose: string;
+    from_date: string;
+    to_date: string;
+    student?: {
+      full_name: string;
+      reg_no: string;
+    };
+  };
 }
 
 interface SecurityDashboardProps {
@@ -25,80 +36,179 @@ interface SecurityDashboardProps {
 export default function SecurityDashboard({ userData, onLogout }: SecurityDashboardProps) {
   const [qrInput, setQrInput] = useState("");
   const [scanResult, setScanResult] = useState<any>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: "LOG001",
-      studentName: "John Doe",
-      regNo: "REG2023001",
-      action: "OUT",
-      timestamp: "2024-01-20 10:30:00",
-      gate: "Main Gate",
-      outpassId: "OUT001"
-    },
-    {
-      id: "LOG002", 
-      studentName: "Jane Smith",
-      regNo: "REG2023002",
-      action: "IN",
-      timestamp: "2024-01-20 18:45:00",
-      gate: "Main Gate",
-      outpassId: "OUT002"
-    }
-  ]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    todayOut: 0,
+    todayIn: 0,
+    currentlyOut: 0,
+    totalToday: 0
+  });
+  const { toast } = useToast();
 
-  const handleQRScan = () => {
-    // Simulate QR code verification
-    if (qrInput.includes("OUT")) {
+  const fetchLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('security_logs')
+        .select(`
+          *,
+          outpass_requests!request_id (
+            id,
+            purpose,
+            from_date,
+            to_date,
+            student:profiles!student_id (
+              full_name,
+              reg_no
+            )
+          )
+        `)
+        .order('verified_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setLogs(data as any || []);
+
+      // Calculate stats
+      const today = new Date().toISOString().split('T')[0];
+      const todayLogs = (data || []).filter((log: LogEntry) => 
+        log.verified_at.startsWith(today)
+      );
+
+      setStats({
+        todayOut: todayLogs.filter(log => log.action === 'exit').length,
+        todayIn: todayLogs.filter(log => log.action === 'entry').length,
+        currentlyOut: (data || []).reduce((acc, log) => {
+          if (log.action === 'exit') acc++;
+          if (log.action === 'entry') acc--;
+          return acc;
+        }, 0),
+        totalToday: todayLogs.length
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('security-logs')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'security_logs'
+        },
+        (payload) => {
+          console.log('Realtime update:', payload);
+          fetchLogs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const handleQRScan = async () => {
+    if (!qrInput) {
+      toast({
+        title: "Error",
+        description: "Please enter an Outpass ID",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Fetch approved outpass request
+      const { data, error } = await supabase
+        .from('outpass_requests')
+        .select(`
+          *,
+          student:profiles!student_id (
+            full_name,
+            reg_no
+          )
+        `)
+        .eq('id', qrInput)
+        .eq('status', 'approved')
+        .single();
+
+      if (error || !data) {
+        setScanResult({
+          valid: false,
+          error: "Invalid QR Code or Outpass not approved"
+        });
+        return;
+      }
+
+      const studentData = data.student as any;
       setScanResult({
         valid: true,
-        outpassId: qrInput,
-        studentName: "John Doe",
-        regNo: "REG2023001",
-        validFrom: "2024-01-20",
-        validTo: "2024-01-20",
-        reason: "Medical Appointment",
-        status: "Approved"
+        outpassId: data.id,
+        studentName: studentData?.full_name,
+        regNo: studentData?.reg_no,
+        validFrom: data.from_date,
+        validTo: data.to_date,
+        reason: data.purpose,
+        status: data.status
       });
-    } else {
-      setScanResult({
-        valid: false,
-        error: "Invalid QR Code or Outpass not approved"
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
       });
     }
   };
 
-  const markEntry = (action: "OUT" | "IN") => {
-    if (scanResult && scanResult.valid) {
-      const newLog: LogEntry = {
-        id: `LOG${String(logs.length + 1).padStart(3, "0")}`,
-        studentName: scanResult.studentName,
-        regNo: scanResult.regNo,
-        action,
-        timestamp: new Date().toLocaleString(),
-        gate: "Main Gate",
-        outpassId: scanResult.outpassId
-      };
-      
-      setLogs(prev => [newLog, ...prev]);
+  const markEntry = async (action: "exit" | "entry") => {
+    if (!scanResult || !scanResult.valid) return;
+
+    try {
+      const { error } = await supabase
+        .from('security_logs')
+        .insert({
+          request_id: scanResult.outpassId,
+          security_id: userData.id,
+          action: action,
+          notes: `${action === 'exit' ? 'Exit' : 'Entry'} recorded at main gate`
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${action === 'exit' ? 'Exit' : 'Entry'} recorded successfully`
+      });
+
       setScanResult(null);
       setQrInput("");
+      fetchLogs();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   };
 
-  const todayLogs = logs.filter(log => 
-    log.timestamp.startsWith(new Date().toISOString().split('T')[0])
-  );
-
-  const stats = {
-    todayOut: todayLogs.filter(log => log.action === "OUT").length,
-    todayIn: todayLogs.filter(log => log.action === "IN").length,
-    currentlyOut: logs.reduce((acc, log) => {
-      if (log.action === "OUT") acc++;
-      if (log.action === "IN") acc--;
-      return acc;
-    }, 0),
-    totalToday: todayLogs.length
-  };
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-glow/5 via-background to-primary/10">
@@ -186,12 +296,13 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="qrInput">QR Code / Outpass ID</Label>
+                    <Label htmlFor="qrInput">Outpass ID</Label>
                     <Input
                       id="qrInput"
-                      placeholder="Scan QR or enter Outpass ID (e.g., OUT001)"
+                      placeholder="Enter Outpass ID (UUID)"
                       value={qrInput}
                       onChange={(e) => setQrInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleQRScan()}
                     />
                   </div>
                   
@@ -201,7 +312,7 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                   </Button>
                   
                   <div className="bg-muted/50 rounded-lg p-4 text-center text-sm text-muted-foreground">
-                    📱 In a real implementation, this would use camera for QR scanning
+                    📱 In production, this would use camera for QR scanning
                   </div>
                 </CardContent>
               </Card>
@@ -225,26 +336,26 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                       </div>
                       
                       <div className="space-y-2 text-sm">
-                        <p><strong>Outpass ID:</strong> {scanResult.outpassId}</p>
+                        <p><strong>Outpass ID:</strong> {scanResult.outpassId.slice(0, 8)}</p>
                         <p><strong>Student:</strong> {scanResult.studentName}</p>
                         <p><strong>Reg No:</strong> {scanResult.regNo}</p>
-                        <p><strong>Reason:</strong> {scanResult.reason}</p>
-                        <p><strong>Valid Period:</strong> {scanResult.validFrom} to {scanResult.validTo}</p>
-                        <Badge className="bg-success text-success-foreground">{scanResult.status}</Badge>
+                        <p><strong>Purpose:</strong> {scanResult.reason}</p>
+                        <p><strong>Valid Period:</strong> {new Date(scanResult.validFrom).toLocaleString()} to {new Date(scanResult.validTo).toLocaleString()}</p>
+                        <Badge className="bg-success text-success-foreground">{scanResult.status.toUpperCase()}</Badge>
                       </div>
                       
                       <div className="flex space-x-2 pt-4">
                         <Button 
-                          variant="warning" 
-                          onClick={() => markEntry("OUT")}
-                          className="flex-1"
+                          variant="default"
+                          onClick={() => markEntry("exit")}
+                          className="flex-1 bg-warning hover:bg-warning/90"
                         >
                           Mark Exit
                         </Button>
                         <Button 
-                          variant="success" 
-                          onClick={() => markEntry("IN")}
-                          className="flex-1"
+                          variant="default"
+                          onClick={() => markEntry("entry")}
+                          className="flex-1 bg-success hover:bg-success/90"
                         >
                           Mark Return
                         </Button>
@@ -277,40 +388,40 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {logs.map((log) => (
-                    <div 
-                      key={log.id} 
-                      className="flex justify-between items-center p-4 border rounded-lg hover:bg-muted/50"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <Badge 
-                          className={log.action === "OUT" 
-                            ? "bg-warning text-warning-foreground" 
-                            : "bg-success text-success-foreground"
-                          }
-                        >
-                          {log.action}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">{log.studentName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {log.regNo} • {log.outpassId}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right text-sm">
-                        <p className="font-medium">{log.timestamp}</p>
-                        <p className="text-muted-foreground">{log.gate}</p>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {logs.length === 0 && (
+                  {logs.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
                       <p>No logs recorded yet</p>
                     </div>
+                  ) : (
+                    logs.map((log) => (
+                      <div 
+                        key={log.id} 
+                        className="flex justify-between items-center p-4 border rounded-lg hover:bg-muted/50"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <Badge 
+                            className={log.action === "exit" 
+                              ? "bg-warning text-warning-foreground" 
+                              : "bg-success text-success-foreground"
+                            }
+                          >
+                            {log.action.toUpperCase()}
+                          </Badge>
+                          <div>
+                            <p className="font-medium">{log.outpass_requests?.student?.full_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {log.outpass_requests?.student?.reg_no} • {log.outpass_requests?.purpose}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right text-sm">
+                          <p className="font-medium">{new Date(log.verified_at).toLocaleString()}</p>
+                          <p className="text-muted-foreground">Main Gate</p>
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </CardContent>
