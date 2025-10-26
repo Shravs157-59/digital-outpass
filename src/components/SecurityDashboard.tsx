@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, QrCode, LogOut, User, Clock, CheckCircle, XCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { qrCodeSchema } from "@/lib/schemas";
 
 interface LogEntry {
   id: string;
@@ -88,8 +89,8 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
-        variant: "destructive"
+        description: "Unable to load logs. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -122,11 +123,12 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
   }, []);
 
   const handleQRScan = async () => {
-    if (!qrInput) {
+    const validation = qrCodeSchema.safeParse(qrInput);
+    if (!validation.success) {
       toast({
-        title: "Error",
-        description: "Please enter an Outpass ID",
-        variant: "destructive"
+        title: "Invalid Input",
+        description: validation.error.issues[0]?.message || "Please enter a valid Outpass ID",
+        variant: "destructive",
       });
       return;
     }
@@ -142,14 +144,14 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
             reg_no
           )
         `)
-        .eq('id', qrInput)
+        .eq('id', validation.data)
         .eq('status', 'approved')
         .single();
 
       if (error || !data) {
         setScanResult({
           valid: false,
-          error: "Invalid QR Code or Outpass not approved"
+          error: "Invalid QR Code or Outpass not approved",
         });
         return;
       }
@@ -163,13 +165,13 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
         validFrom: data.from_date,
         validTo: data.to_date,
         reason: data.purpose,
-        status: data.status
+        status: data.status,
       });
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
-        variant: "destructive"
+        description: "Could not verify the outpass. Please try again.",
+        variant: "destructive",
       });
     }
   };

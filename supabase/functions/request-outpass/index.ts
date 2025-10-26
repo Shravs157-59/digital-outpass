@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,17 +37,22 @@ serve(async (req) => {
       });
     }
 
-    const { purpose, from_date, to_date } = await req.json();
+    const BodySchema = z.object({
+      purpose: z.string().trim().min(10).max(200),
+      from_date: z.string().datetime(),
+      to_date: z.string().datetime(),
+    }).refine((d) => new Date(d.to_date) > new Date(d.from_date), { message: 'to_date must be after from_date' });
 
-    if (!purpose || !from_date || !to_date) {
+    const body = await req.json();
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: purpose, from_date, to_date' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        JSON.stringify({ error: 'Validation failed', details: parsed.error.issues.map(i => ({ path: i.path, message: i.message })) }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { purpose, from_date, to_date } = parsed.data;
 
     console.log('Creating outpass request for user:', user.id);
 
@@ -66,7 +72,7 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error creating request:', insertError);
-      return new Response(JSON.stringify({ error: insertError.message }), {
+      return new Response(JSON.stringify({ error: 'Unable to create request' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -80,7 +86,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Unexpected error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: 'Unable to create request' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Clock, User, LogOut, Calendar } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { approvalSchema } from "@/lib/schemas";
 
 interface PendingRequest {
   id: string;
@@ -99,8 +100,8 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
-        variant: "destructive"
+        description: "Unable to load pending requests. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -140,20 +141,33 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
   const confirmAction = async () => {
     if (!selectedRequest || !actionType) return;
 
+    // Validate inputs
+    const validation = approvalSchema.safeParse({
+      request_id: selectedRequest.id,
+      action: actionType === "approve" ? "approved" : "rejected",
+      comments: remarks || undefined,
+    });
+
+    if (!validation.success) {
+      const issue = validation.error.issues[0];
+      toast({
+        title: "Validation Error",
+        description: issue?.message || "Please check your inputs",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase.functions.invoke('process-request', {
-        body: {
-          request_id: selectedRequest.id,
-          action: actionType === "approve" ? "approved" : "rejected",
-          comments: remarks
-        }
+        body: validation.data,
       });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: `Request ${actionType === "approve" ? "approved" : "rejected"} successfully`
+        description: `Request ${actionType === "approve" ? "approved" : "rejected"} successfully`,
       });
 
       setSelectedRequest(null);
@@ -163,8 +177,8 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
-        variant: "destructive"
+        description: "Could not process the action. Please try again.",
+        variant: "destructive",
       });
     }
   };

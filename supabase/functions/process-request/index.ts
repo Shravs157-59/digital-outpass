@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,17 +31,23 @@ serve(async (req) => {
       });
     }
 
-    const { request_id, action, comments } = await req.json();
+    // Validate input
+    const BodySchema = z.object({
+      request_id: z.string().uuid(),
+      action: z.enum(['approved', 'rejected']),
+      comments: z.string().max(500).optional(),
+    });
 
-    if (!request_id || !action || !['approved', 'rejected'].includes(action.toLowerCase())) {
+    const body = await req.json();
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) {
       return new Response(
-        JSON.stringify({ error: 'Invalid request. Provide request_id and action (approved/rejected)' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        JSON.stringify({ error: 'Validation failed', details: parsed.error.issues.map(i => ({ path: i.path, message: i.message })) }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { request_id, action, comments } = parsed.data;
 
     console.log(`Processing request ${request_id} with action ${action} by user ${user.id}`);
 
@@ -67,6 +74,42 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
+    }
+
+    // Authorization: user must have a faculty role and their role must be in visible_to_roles
+    const facultyRoles = ['class_incharge', 'coordinator', 'hod', 'principal'];
+    const { data: rolesData, error: rolesError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id);
+
+    if (rolesError) {
+      console.error('Error fetching user roles:', rolesError);
+      return new Response(JSON.stringify({ error: 'Unable to verify permissions' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userRoles = (rolesData || []).map((r: any) => r.role);
+    const isFaculty = userRoles.some((r: string) => facultyRoles.includes(r));
+
+    if (!isFaculty) {
+      return new Response(JSON.stringify({ error: 'Forbidden: Faculty access required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const canAct = Array.isArray(request.visible_to_roles)
+      ? request.visible_to_roles.some((r: string) => userRoles.includes(r))
+      : false;
+
+    if (!canAct) {
+      return new Response(JSON.stringify({ error: 'Forbidden: Request not assigned to your role' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const now = new Date().toISOString();
@@ -96,7 +139,7 @@ serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating request:', updateError);
-      return new Response(JSON.stringify({ error: updateError.message }), {
+      return new Response(JSON.stringify({ error: 'Unable to update request' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -209,7 +252,7 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Unexpected error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: 'Unable to process request' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

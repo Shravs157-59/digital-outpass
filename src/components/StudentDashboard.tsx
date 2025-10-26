@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock, Download, Plus, User, LogOut, QrCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { outpassRequestSchema } from "@/lib/schemas";
 
 interface OutpassRequest {
   id: string;
@@ -55,7 +56,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: "Unable to load your requests. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -96,43 +97,47 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
   ).length;
 
   const handleSubmitRequest = async () => {
-    if (!newRequest.purpose || !newRequest.fromDate || !newRequest.toDate) {
+    // Client-side validation
+    const validation = outpassRequestSchema.safeParse({
+      purpose: newRequest.purpose,
+      from_date: newRequest.fromDate ? new Date(newRequest.fromDate).toISOString() : "",
+      to_date: newRequest.toDate ? new Date(newRequest.toDate).toISOString() : "",
+    });
+
+    if (!validation.success) {
+      const firstIssue = validation.error.issues[0];
       toast({
-        title: "Error",
-        description: "Please fill all required fields",
-        variant: "destructive"
+        title: "Validation Error",
+        description: firstIssue?.message || "Please check your inputs",
+        variant: "destructive",
       });
       return;
     }
 
     try {
       const { data, error } = await supabase.functions.invoke('request-outpass', {
-        body: {
-          purpose: newRequest.purpose,
-          from_date: new Date(newRequest.fromDate).toISOString(),
-          to_date: new Date(newRequest.toDate).toISOString()
-        }
+        body: validation.data,
       });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Outpass request submitted successfully"
+        description: "Outpass request submitted successfully",
       });
 
       setNewRequest({
         purpose: "",
         fromDate: "",
-        toDate: ""
+        toDate: "",
       });
       setShowNewRequestDialog(false);
       fetchRequests();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
-        variant: "destructive"
+        description: "Could not submit request. Please try again.",
+        variant: "destructive",
       });
     }
   };
