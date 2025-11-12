@@ -280,14 +280,14 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         return;
       }
 
-      // Fetch user profile to verify role
+      // Fetch user profile (handle case where it may not exist yet)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !profile) {
+      if (profileError) {
         toast({
           title: "Error",
           description: "Failed to load user profile",
@@ -297,7 +297,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         return;
       }
 
-      // Verify role matches
+      // Expected role based on selected portal
       const roleMap: Record<string, string> = {
         'student': 'student',
         'classincharge': 'class_incharge',
@@ -308,10 +308,37 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
       };
       const expectedRole = roleMap[role] || role;
 
-      if (profile.role !== expectedRole) {
+      // Create a minimal profile if none exists yet
+      let currentProfile = profile as any;
+      if (!currentProfile) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            full_name: (data.user.user_metadata?.full_name as string) || '',
+            role: expectedRole as any
+          } as any)
+          .select('*')
+          .maybeSingle();
+
+        if (insertError || !inserted) {
+          toast({
+            title: "Error",
+            description: "Failed to create user profile",
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
+        currentProfile = inserted;
+      }
+
+      // Verify role matches
+      if (currentProfile.role !== expectedRole) {
         toast({
           title: "Access Denied",
-          description: `This account is registered as ${profile.role}, not ${expectedRole}`,
+          description: `This account is registered as ${currentProfile.role}, not ${expectedRole}`,
           variant: "destructive"
         });
         await supabase.auth.signOut();
