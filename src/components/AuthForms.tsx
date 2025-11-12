@@ -163,6 +163,15 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         return;
       }
 
+      // Ensure session before profile update
+      const { error: earlySignInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      });
+      if (earlySignInError) {
+        console.warn('Early sign-in failed:', earlySignInError.message);
+      }
+
       // Upload photo if provided
       let photoUrl = null;
       if (formData.photo) {

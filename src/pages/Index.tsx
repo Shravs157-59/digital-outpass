@@ -50,7 +50,7 @@ const Index = () => {
               console.log('Profile not found yet, waiting...');
               // Profile might not exist yet, stay on current screen
             }
-          }, 100);
+          }, 500);
         } else {
           setUserData(null);
           setAppState("landing");
