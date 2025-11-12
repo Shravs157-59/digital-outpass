@@ -20,22 +20,37 @@ const Index = () => {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         
         if (session?.user) {
-          // Fetch user profile
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (profile && !error) {
-            setUserData(profile);
-            setSelectedRole(profile.role);
-            setAppState("dashboard");
-          }
+          // Defer profile fetching to avoid race condition
+          setTimeout(async () => {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            
+            if (error) {
+              console.error('Profile fetch error:', error);
+              toast({
+                title: "Error",
+                description: "Failed to load user profile",
+                variant: "destructive"
+              });
+              return;
+            }
+
+            if (profile) {
+              setUserData(profile);
+              setSelectedRole(profile.role);
+              setAppState("dashboard");
+            } else {
+              console.log('Profile not found yet, waiting...');
+              // Profile might not exist yet, stay on current screen
+            }
+          }, 100);
         } else {
           setUserData(null);
           setAppState("landing");
@@ -51,8 +66,18 @@ const Index = () => {
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
-          .then(({ data: profile }) => {
+          .maybeSingle()
+          .then(({ data: profile, error }) => {
+            if (error) {
+              console.error('Profile fetch error:', error);
+              toast({
+                title: "Error",
+                description: "Failed to load user profile",
+                variant: "destructive"
+              });
+              return;
+            }
+
             if (profile) {
               setUserData(profile);
               setSelectedRole(profile.role);
@@ -63,7 +88,7 @@ const Index = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [toast]);
 
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
