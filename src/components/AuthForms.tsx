@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Upload } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthFormsProps {
   role: string;
@@ -71,6 +73,8 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
     confirmPassword: "",
     photo: null as File | null
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
@@ -91,18 +95,232 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
   const isStudent = role === "student";
   const isFaculty = ["classincharge", "coordinator", "hod", "principal"].includes(role);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match!");
+      toast({
+        title: "Error",
+        description: "Passwords don't match!",
+        variant: "destructive"
+      });
       return;
     }
-    onAuth({ ...formData, role, isNewUser: true });
+
+    if (formData.password.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Map role to database format
+      const roleMap: Record<string, string> = {
+        'student': 'student',
+        'classincharge': 'class_incharge',
+        'coordinator': 'coordinator',
+        'hod': 'hod',
+        'principal': 'principal',
+        'security': 'security'
+      };
+      const dbRole = roleMap[role] || role;
+
+      // Sign up the user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            full_name: formData.fullName,
+            role: dbRole
+          }
+        }
+      });
+
+      if (signUpError) {
+        toast({
+          title: "Registration Failed",
+          description: signUpError.message,
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!authData.user) {
+        toast({
+          title: "Registration Failed",
+          description: "Failed to create user account",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Upload photo if provided
+      let photoUrl = null;
+      if (formData.photo) {
+        const fileExt = formData.photo.name.split('.').pop();
+        const fileName = `${authData.user.id}-${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, formData.photo);
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+          photoUrl = urlData.publicUrl;
+        }
+      }
+
+      // Create profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          email: formData.email,
+          full_name: formData.fullName,
+          role: dbRole,
+          department: formData.dept || null,
+          branch: formData.dept || null,
+          year: formData.year || null,
+          section: formData.section || null,
+          reg_no: formData.regNo || null,
+          employee_id: formData.employeeId || null,
+          security_id: formData.securityId || null,
+          photo_url: photoUrl
+        });
+
+      if (profileError) {
+        toast({
+          title: "Profile Creation Failed",
+          description: profileError.message,
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Account created successfully! You can now log in.",
+      });
+
+      // Auto-login after registration
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      });
+
+      if (signInError) {
+        toast({
+          title: "Login Required",
+          description: "Please log in with your credentials",
+        });
+      }
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAuth({ email: formData.email, password: formData.password, role, isNewUser: false });
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      });
+
+      if (error) {
+        toast({
+          title: "Login Failed",
+          description: error.message,
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!data.user) {
+        toast({
+          title: "Login Failed",
+          description: "Invalid credentials",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch user profile to verify role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        toast({
+          title: "Error",
+          description: "Failed to load user profile",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Verify role matches
+      const roleMap: Record<string, string> = {
+        'student': 'student',
+        'classincharge': 'class_incharge',
+        'coordinator': 'coordinator',
+        'hod': 'hod',
+        'principal': 'principal',
+        'security': 'security'
+      };
+      const expectedRole = roleMap[role] || role;
+
+      if (profile.role !== expectedRole) {
+        toast({
+          title: "Access Denied",
+          description: `This account is registered as ${profile.role}, not ${expectedRole}`,
+          variant: "destructive"
+        });
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Logged in successfully!",
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getRoleDisplayName = () => {
@@ -172,8 +390,8 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                     />
                   </div>
                   
-                  <Button type="submit" className="w-full" size="lg">
-                    Login to Dashboard
+                  <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                    {isLoading ? "Logging in..." : "Login to Dashboard"}
                   </Button>
                 </form>
               </TabsContent>
@@ -479,8 +697,8 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                     </>
                   )}
                   
-                  <Button type="submit" className="w-full" size="lg">
-                    Create Account
+                  <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                    {isLoading ? "Creating Account..." : "Create Account"}
                   </Button>
                 </form>
               </TabsContent>
