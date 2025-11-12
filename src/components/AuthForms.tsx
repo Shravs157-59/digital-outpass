@@ -181,11 +181,13 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         }
       }
 
-      // Create profile
+      // Wait a moment for trigger to create basic profile
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update profile with additional details
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert({
-          id: authData.user.id,
+        .update({
           email: formData.email,
           full_name: formData.fullName,
           role: dbRole as any,
@@ -197,7 +199,8 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
           employee_id: formData.employeeId || null,
           security_id: formData.securityId || null,
           photo_url: photoUrl
-        } as any);
+        } as any)
+        .eq('id', authData.user.id);
 
       if (profileError) {
         toast({
