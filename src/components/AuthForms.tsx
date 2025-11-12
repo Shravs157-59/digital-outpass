@@ -184,11 +184,11 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
       // Create profile
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: authData.user.id,
           email: formData.email,
           full_name: formData.fullName,
-          role: dbRole,
+          role: dbRole as any,
           department: formData.dept || null,
           branch: formData.dept || null,
           year: formData.year || null,
@@ -197,7 +197,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
           employee_id: formData.employeeId || null,
           security_id: formData.securityId || null,
           photo_url: photoUrl
-        });
+        } as any);
 
       if (profileError) {
         toast({
