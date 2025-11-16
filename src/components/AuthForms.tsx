@@ -163,15 +163,6 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         return;
       }
 
-      // Ensure session before profile update
-      const { error: earlySignInError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password
-      });
-      if (earlySignInError) {
-        console.warn('Early sign-in failed:', earlySignInError.message);
-      }
-
       // Upload photo if provided
       let photoUrl = null;
       if (formData.photo) {
@@ -190,13 +181,14 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         }
       }
 
-      // Wait a moment for trigger to create basic profile
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for trigger to create basic profile
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Update profile with additional details
+      // Use upsert to ensure profile is created/updated
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: authData.user.id,
           email: formData.email,
           full_name: formData.fullName,
           role: dbRole as any,
@@ -208,13 +200,14 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
           employee_id: formData.employeeId || null,
           security_id: formData.securityId || null,
           photo_url: photoUrl
-        } as any)
-        .eq('id', authData.user.id);
+        } as any, {
+          onConflict: 'id'
+        });
 
       if (profileError) {
         toast({
-          title: "Profile Creation Failed",
-          description: profileError.message,
+          title: "Error",
+          description: "Database error saving new user",
           variant: "destructive"
         });
         setIsLoading(false);
