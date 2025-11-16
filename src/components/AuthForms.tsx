@@ -199,15 +199,15 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
           reg_no: formData.regNo || null,
           employee_id: formData.employeeId || null,
           security_id: formData.securityId || null,
-          photo_url: photoUrl
         } as any, {
           onConflict: 'id'
         });
 
       if (profileError) {
+        console.error('Profile upsert error:', profileError);
         toast({
-          title: "Error",
-          description: "Database error saving new user",
+          title: "Registration Failed",
+          description: profileError.message || "Database error saving new user",
           variant: "destructive"
         });
         setIsLoading(false);
