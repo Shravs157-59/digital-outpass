@@ -106,18 +106,25 @@ const Index = () => {
   };
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to logout",
-        variant: "destructive"
-      });
-    } else {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+      }
+    } catch (error) {
+      console.error('Logout exception:', error);
+    } finally {
+      // Always clear state regardless of signOut result
+      // If signOut fails, session is likely already invalid
       setAppState("landing");
       setSelectedRole("");
       setUserData(null);
       setSession(null);
+      
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
     }
   };
 
