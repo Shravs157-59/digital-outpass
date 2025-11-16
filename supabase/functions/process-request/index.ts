@@ -66,13 +66,27 @@ serve(async (req) => {
       });
     }
 
+    // Make function idempotent: if already processed by this user, return success
     if (request.status !== 'pending') {
+      // If already approved/rejected by the same user, return success
+      if (action === 'approved' && request.approved_by === user.id) {
+        console.log(`Request ${request_id} already approved by user ${user.id} - returning success`);
+        return new Response(
+          JSON.stringify({ success: true, message: 'Request already approved' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (action === 'rejected' && request.rejected_by === user.id) {
+        console.log(`Request ${request_id} already rejected by user ${user.id} - returning success`);
+        return new Response(
+          JSON.stringify({ success: true, message: 'Request already rejected' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Otherwise, it was processed by someone else
       return new Response(
         JSON.stringify({ error: `Request is already ${request.status}` }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

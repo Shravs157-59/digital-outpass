@@ -38,6 +38,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [stats, setStats] = useState({
     pending: 0,
     approvedToday: 0,
@@ -139,7 +140,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
   };
 
   const confirmAction = async () => {
-    if (!selectedRequest || !actionType) return;
+    if (!selectedRequest || !actionType || processing) return;
 
     // Validate inputs
     const validation = approvalSchema.safeParse({
@@ -158,12 +159,15 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       return;
     }
 
+    setProcessing(true);
     try {
-      const { error } = await supabase.functions.invoke('process-request', {
+      const { data, error } = await supabase.functions.invoke('process-request', {
         body: validation.data,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message || 'Failed to process request');
+      }
 
       toast({
         title: "Success",
@@ -175,11 +179,14 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       setRemarks("");
       fetchRequests();
     } catch (error: any) {
+      console.error('Process request error:', error);
       toast({
         title: "Error",
-        description: "Could not process the action. Please try again.",
+        description: error.message || "Could not process the action. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -386,11 +393,17 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                 <Button 
                   variant={actionType === "approve" ? "default" : "destructive"}
                   onClick={confirmAction}
+                  disabled={processing}
                   className={actionType === "approve" ? "flex-1 bg-success hover:bg-success/90" : "flex-1"}
                 >
-                  Confirm {actionType === "approve" ? "Approval" : "Rejection"}
+                  {processing ? "Processing..." : `Confirm ${actionType === "approve" ? "Approval" : "Rejection"}`}
                 </Button>
-                <Button variant="outline" onClick={() => setSelectedRequest(null)} className="flex-1">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setSelectedRequest(null)} 
+                  disabled={processing}
+                  className="flex-1"
+                >
                   Cancel
                 </Button>
               </div>
