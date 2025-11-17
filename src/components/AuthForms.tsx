@@ -690,6 +690,18 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                       </div>
                       
                       <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={formData.email}
+                          onChange={(e) => handleInputChange("email", e.target.value)}
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
                         <Label htmlFor="phoneNumber">Phone Number</Label>
                         <Input
                           id="phoneNumber"
