@@ -6,10 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, User, LogOut, Calendar } from "lucide-react";
+import { CheckCircle, XCircle, Clock, User, LogOut, Calendar, BarChart3 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { approvalSchema } from "@/lib/schemas";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PendingRequest {
   id: string;
@@ -45,6 +48,10 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
     rejectedToday: 0,
     totalThisWeek: 0
   });
+  const [studentDetails, setStudentDetails] = useState<any[]>([]);
+  const [timeFilter, setTimeFilter] = useState<"daily" | "monthly">("daily");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const { toast } = useToast();
 
   const fetchRequests = async () => {
@@ -108,6 +115,86 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       setLoading(false);
     }
   };
+
+  const fetchStudentDetails = async () => {
+    try {
+      let studentIds: string[] = [];
+
+      // First, get student IDs based on role filtering
+      if (userData.role === 'class_incharge') {
+        // Class incharge sees only their section
+        const { data: students, error: studentsError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('department', userData.department)
+          .eq('section', userData.section)
+          .eq('role', 'student');
+        
+        if (studentsError) throw studentsError;
+        studentIds = students?.map(s => s.id) || [];
+      } else if (userData.role === 'hod') {
+        // HOD sees their entire department
+        const { data: students, error: studentsError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('department', userData.department)
+          .eq('role', 'student');
+        
+        if (studentsError) throw studentsError;
+        studentIds = students?.map(s => s.id) || [];
+      }
+      // Principal sees all students (no filter needed, studentIds stays empty)
+
+      // Build query for outpass requests
+      let query = supabase
+        .from('outpass_requests')
+        .select(`
+          *,
+          student:profiles!student_id (
+            full_name,
+            reg_no,
+            department,
+            branch,
+            year,
+            section
+          )
+        `);
+
+      // Apply student ID filter if role requires it
+      if (studentIds.length > 0) {
+        query = query.in('student_id', studentIds);
+      }
+
+      // Apply time filter
+      if (timeFilter === 'daily') {
+        const startOfDay = `${selectedDate}T00:00:00`;
+        const endOfDay = `${selectedDate}T23:59:59`;
+        query = query.gte('created_at', startOfDay).lte('created_at', endOfDay);
+      } else {
+        const startOfMonth = `${selectedMonth}-01T00:00:00`;
+        const year = parseInt(selectedMonth.split('-')[0]);
+        const month = parseInt(selectedMonth.split('-')[1]);
+        const lastDay = new Date(year, month, 0).getDate();
+        const endOfMonth = `${selectedMonth}-${lastDay}T23:59:59`;
+        query = query.gte('created_at', startOfMonth).lte('created_at', endOfMonth);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setStudentDetails(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Unable to load student details. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchStudentDetails();
+  }, [timeFilter, selectedDate, selectedMonth]);
 
   useEffect(() => {
     fetchRequests();
@@ -270,8 +357,9 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         </div>
 
         <Tabs defaultValue="pending" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="pending">Pending Requests</TabsTrigger>
+            <TabsTrigger value="students">Student Details</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
@@ -344,6 +432,133 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                 </Card>
               ))
             )}
+          </TabsContent>
+
+          <TabsContent value="students" className="space-y-4 mt-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold">Student Outpass Details</h2>
+                <p className="text-muted-foreground text-sm mt-1">
+                  {userData.role === 'class_incharge' && `Your Section - ${userData.section || 'All'}`}
+                  {userData.role === 'hod' && `Department - ${userData.department || 'All'}`}
+                  {userData.role === 'principal' && 'All Departments'}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm">View:</Label>
+                  <Select value={timeFilter} onValueChange={(value: "daily" | "monthly") => setTimeFilter(value)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {timeFilter === "daily" ? (
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                  />
+                ) : (
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                  />
+                )}
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Outpass Records</CardTitle>
+                    <CardDescription>
+                      Total requests: {studentDetails.length}
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-lg px-4 py-2">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    {studentDetails.length} Students
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {studentDetails.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No outpass records found for the selected period</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[500px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student Name</TableHead>
+                          <TableHead>Reg No</TableHead>
+                          <TableHead>Department</TableHead>
+                          {userData.role === 'principal' && <TableHead>Section</TableHead>}
+                          <TableHead>Purpose</TableHead>
+                          <TableHead>Date & Time</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {studentDetails.map((request) => (
+                          <TableRow key={request.id}>
+                            <TableCell className="font-medium">
+                              {request.student?.full_name || 'N/A'}
+                            </TableCell>
+                            <TableCell>{request.student?.reg_no || 'N/A'}</TableCell>
+                            <TableCell>
+                              {request.student?.department || 'N/A'}
+                              {request.student?.year && ` - ${request.student.year}`}
+                            </TableCell>
+                            {userData.role === 'principal' && (
+                              <TableCell>{request.student?.section || 'N/A'}</TableCell>
+                            )}
+                            <TableCell>
+                              <Badge variant="outline">{request.purpose}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div>{new Date(request.from_date).toLocaleDateString()}</div>
+                                <div className="text-muted-foreground text-xs">
+                                  {new Date(request.from_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={
+                                  request.status === 'approved' ? 'default' : 
+                                  request.status === 'rejected' ? 'destructive' : 
+                                  'secondary'
+                                }
+                                className={
+                                  request.status === 'approved' ? 'bg-success hover:bg-success/90' : ''
+                                }
+                              >
+                                {request.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="history" className="mt-6">
