@@ -38,10 +38,12 @@ interface FacultyDashboardProps {
 export default function FacultyDashboard({ userData, onLogout }: FacultyDashboardProps) {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
+  const [selectedPendingRequest, setSelectedPendingRequest] = useState<PendingRequest | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [previousOutpassCount, setPreviousOutpassCount] = useState<Record<string, number>>({});
   const [stats, setStats] = useState({
     pending: 0,
     approvedToday: 0,
@@ -196,6 +198,21 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
     fetchStudentDetails();
   }, [timeFilter, selectedDate, selectedMonth]);
 
+  const fetchPreviousOutpassCount = async (studentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('outpass_requests')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('status', 'approved');
+      
+      if (error) throw error;
+      return data?.length || 0;
+    } catch (error) {
+      return 0;
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
 
@@ -220,6 +237,21 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       supabase.removeChannel(channel);
     };
   }, [userData.id, userData.role]);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const counts: Record<string, number> = {};
+      for (const request of pendingRequests) {
+        const count = await fetchPreviousOutpassCount(request.student_id);
+        counts[request.student_id] = count;
+      }
+      setPreviousOutpassCount(counts);
+    };
+    
+    if (pendingRequests.length > 0) {
+      fetchCounts();
+    }
+  }, [pendingRequests]);
 
   const handleAction = (request: PendingRequest, action: "approve" | "reject") => {
     setSelectedRequest(request);
@@ -364,73 +396,181 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
           </TabsList>
 
           <TabsContent value="pending" className="space-y-4 mt-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Pending Approvals</h2>
-              <Badge variant="outline" className="text-warning border-warning">
-                {pendingRequests.length} pending
-              </Badge>
-            </div>
+            {!selectedPendingRequest ? (
+              <>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">
+                    Gate Outpass Requests - {userData.department || 'All'} ({getRoleDisplayName()} Panel)
+                  </h2>
+                  <Badge variant="outline" className="text-warning border-warning">
+                    {pendingRequests.length} pending
+                  </Badge>
+                </div>
 
-            {pendingRequests.length === 0 ? (
+                {pendingRequests.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <CheckCircle className="w-12 h-12 text-success mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">All caught up!</h3>
+                      <p className="text-muted-foreground">No pending requests at the moment.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="p-0">
+                      <ScrollArea className="h-[500px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-primary hover:bg-primary">
+                              <TableHead className="text-primary-foreground">Name</TableHead>
+                              <TableHead className="text-primary-foreground">Roll Number</TableHead>
+                              <TableHead className="text-primary-foreground">Year</TableHead>
+                              <TableHead className="text-primary-foreground">Reason</TableHead>
+                              <TableHead className="text-primary-foreground">Date & Time</TableHead>
+                              <TableHead className="text-primary-foreground">Previous Outpasses</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {pendingRequests.map((request) => (
+                              <TableRow 
+                                key={request.id} 
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => setSelectedPendingRequest(request)}
+                              >
+                                <TableCell className="font-medium">
+                                  {request.student?.full_name || 'N/A'}
+                                </TableCell>
+                                <TableCell>{request.student?.reg_no || 'N/A'}</TableCell>
+                                <TableCell>{request.student?.year || 'N/A'}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{request.purpose}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">
+                                    {new Date(request.from_date).toLocaleString('en-US', {
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-primary font-semibold">
+                                    {previousOutpassCount[request.student_id] || 0}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
               <Card>
-                <CardContent className="p-12 text-center">
-                  <CheckCircle className="w-12 h-12 text-success mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">All caught up!</h3>
-                  <p className="text-muted-foreground">No pending requests at the moment.</p>
+                <CardHeader className="border-b">
+                  <div className="flex items-center justify-center">
+                    <img 
+                      src="/src/assets/college-logo.png" 
+                      alt="College Logo" 
+                      className="w-16 h-16 object-contain"
+                    />
+                  </div>
+                  <CardTitle className="text-center text-2xl">
+                    Gate Outpass - {userData.department || 'Department'}
+                  </CardTitle>
+                  <p className="text-center text-muted-foreground">
+                    {getRoleDisplayName()} Panel
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-base font-semibold">Student Name</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md">
+                        {selectedPendingRequest.student?.full_name || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-semibold">Roll Number</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md">
+                        {selectedPendingRequest.student?.reg_no || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-semibold">Year</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md">
+                        {selectedPendingRequest.student?.year || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-semibold">Reason for Outpass</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md min-h-[80px]">
+                        {selectedPendingRequest.purpose}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-semibold">Requested Date & Time</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md">
+                        {new Date(selectedPendingRequest.from_date).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-primary/10 border border-primary/20 rounded-md">
+                      <span className="text-primary font-semibold">
+                        Previous Outpass Count: {previousOutpassCount[selectedPendingRequest.student_id] || 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedPendingRequest(null)}
+                    >
+                      Back to List
+                    </Button>
+                    <div className="flex gap-3">
+                      <Button
+                        className="bg-success hover:bg-success/90"
+                        onClick={() => {
+                          handleAction(selectedPendingRequest, "approve");
+                          setSelectedPendingRequest(null);
+                        }}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Accept
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          handleAction(selectedPendingRequest, "reject");
+                          setSelectedPendingRequest(null);
+                        }}
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
-            ) : (
-              pendingRequests.map((request) => (
-                <Card key={request.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-4">
-                          <h3 className="font-semibold text-lg">#{request.id.slice(0, 8)}</h3>
-                          <Badge variant="outline">{request.purpose}</Badge>
-                        </div>
-                        <p className="text-muted-foreground">
-                          {request.student?.full_name} ({request.student?.reg_no}) - {request.student?.department}, {request.student?.year}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button 
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleAction(request, "approve")}
-                          className="bg-success hover:bg-success/90"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Approve
-                        </Button>
-                        <Button 
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleAction(request, "reject")}
-                        >
-                          <XCircle className="w-4 h-4 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <span>Applied: {new Date(request.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-muted-foreground" />
-                        <span>From: {new Date(request.from_date).toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-muted-foreground" />
-                        <span>To: {new Date(request.to_date).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
             )}
           </TabsContent>
 
