@@ -56,6 +56,36 @@ export type Database = {
           },
         ]
       }
+      faculty_monthly_approvals: {
+        Row: {
+          approval_count: number
+          created_at: string | null
+          faculty_id: string
+          id: string
+          month_year: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string | null
+        }
+        Insert: {
+          approval_count?: number
+          created_at?: string | null
+          faculty_id: string
+          id?: string
+          month_year: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
+        }
+        Update: {
+          approval_count?: number
+          created_at?: string | null
+          faculty_id?: string
+          id?: string
+          month_year?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -108,9 +138,16 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          class_incharge_approved_at: string | null
+          class_incharge_id: string | null
           created_at: string | null
+          current_approval_level: string | null
           from_date: string
+          hod_approved_at: string | null
+          hod_id: string | null
           id: string
+          principal_approved_at: string | null
+          principal_id: string | null
           purpose: string
           qr_code: string | null
           rejected_at: string | null
@@ -125,9 +162,16 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          class_incharge_approved_at?: string | null
+          class_incharge_id?: string | null
           created_at?: string | null
+          current_approval_level?: string | null
           from_date: string
+          hod_approved_at?: string | null
+          hod_id?: string | null
           id?: string
+          principal_approved_at?: string | null
+          principal_id?: string | null
           purpose: string
           qr_code?: string | null
           rejected_at?: string | null
@@ -142,9 +186,16 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          class_incharge_approved_at?: string | null
+          class_incharge_id?: string | null
           created_at?: string | null
+          current_approval_level?: string | null
           from_date?: string
+          hod_approved_at?: string | null
+          hod_id?: string | null
           id?: string
+          principal_approved_at?: string | null
+          principal_id?: string | null
           purpose?: string
           qr_code?: string | null
           rejected_at?: string | null
@@ -300,6 +351,13 @@ export type Database = {
     }
     Functions: {
       escalate_pending_outpasses: { Args: never; Returns: undefined }
+      get_monthly_approval_count: {
+        Args: {
+          _faculty_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: number
+      }
       get_user_department: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
