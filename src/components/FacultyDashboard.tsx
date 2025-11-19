@@ -58,20 +58,22 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
 
   const fetchRequests = async () => {
     try {
-      // Fetch pending requests visible to this role
+      // Fetch pending requests at current approval level
       const { data, error } = await supabase
         .from('outpass_requests')
         .select(`
           *,
-          student:profiles!student_id (
+          student:profiles!outpass_requests_student_id_fkey (
             full_name,
             reg_no,
             department,
-            year
+            branch,
+            year,
+            section
           )
         `)
         .eq('status', 'pending')
-        .contains('visible_to_roles', [userData.role])
+        .eq('current_approval_level', userData.role)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -81,31 +83,50 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       const today = new Date().toISOString().split('T')[0];
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      const { data: approvedToday } = await supabase
-        .from('outpass_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'approved')
-        .eq('approved_by', userData.id)
-        .gte('approved_at', today);
+      // Get approval count based on role level
+      const roleColumn = userData.role === 'class_incharge' ? 'class_incharge_id' : 
+                        userData.role === 'hod' ? 'hod_id' : 
+                        userData.role === 'principal' ? 'principal_id' : null;
+      
+      const approvedAtColumn = userData.role === 'class_incharge' ? 'class_incharge_approved_at' : 
+                              userData.role === 'hod' ? 'hod_approved_at' : 
+                              userData.role === 'principal' ? 'principal_approved_at' : null;
 
-      const { data: rejectedToday } = await supabase
+      let approvedTodayCount = 0;
+      let rejectedTodayCount = 0;
+      let weeklyTotalCount = 0;
+
+      if (roleColumn && approvedAtColumn) {
+        const { count: approvedCount } = await supabase
+          .from('outpass_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq(roleColumn, userData.id)
+          .gte(approvedAtColumn, today);
+        approvedTodayCount = approvedCount || 0;
+      }
+
+      const { count: rejectedCount } = await supabase
         .from('outpass_requests')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'rejected')
         .eq('rejected_by', userData.id)
         .gte('rejected_at', today);
+      rejectedTodayCount = rejectedCount || 0;
 
-      const { data: weeklyTotal } = await supabase
-        .from('outpass_requests')
-        .select('id', { count: 'exact', head: true })
-        .or(`approved_by.eq.${userData.id},rejected_by.eq.${userData.id}`)
-        .gte('created_at', weekAgo);
+      if (roleColumn) {
+        const { count: weeklyCount } = await supabase
+          .from('outpass_requests')
+          .select('id', { count: 'exact', head: true })
+          .or(`${roleColumn}.eq.${userData.id},rejected_by.eq.${userData.id}`)
+          .gte('created_at', weekAgo);
+        weeklyTotalCount = weeklyCount || 0;
+      }
 
       setStats({
         pending: data?.length || 0,
-        approvedToday: approvedToday?.length || 0,
-        rejectedToday: rejectedToday?.length || 0,
-        totalThisWeek: weeklyTotal?.length || 0
+        approvedToday: approvedTodayCount,
+        rejectedToday: rejectedTodayCount,
+        totalThisWeek: weeklyTotalCount
       });
     } catch (error: any) {
       toast({
