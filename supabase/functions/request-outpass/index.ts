@@ -56,6 +56,34 @@ serve(async (req) => {
 
     console.log('Creating outpass request for user:', user.id);
 
+    // Check monthly limit (4 requests per student per month)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthStart = new Date(currentYear, currentMonth, 1).toISOString();
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59).toISOString();
+
+    const { count, error: countError } = await supabase
+      .from('outpass_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('student_id', user.id)
+      .gte('created_at', monthStart)
+      .lte('created_at', monthEnd);
+
+    if (countError) {
+      console.error('Error checking monthly limit:', countError);
+      return new Response(JSON.stringify({ error: 'Unable to verify monthly limit' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (count && count >= 4) {
+      return new Response(
+        JSON.stringify({ error: 'Monthly outpass limit exceeded. You can only submit 4 requests per month.' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Create the outpass request with initial visibility to class_incharge only
     const { data: request, error: insertError } = await supabase
       .from('outpass_requests')
