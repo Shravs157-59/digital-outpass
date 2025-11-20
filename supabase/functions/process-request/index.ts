@@ -196,6 +196,7 @@ serve(async (req) => {
           updateData.principal_approved_at = now;
           updateData.approved_by = user.id;
           updateData.approved_at = now;
+          updateData.qr_code = request_id; // Set QR code to request ID for verification
           updateData.visible_to_roles = [];
           nextLevel = 'approved';
         } else {
