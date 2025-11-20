@@ -533,6 +533,13 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                     </div>
 
                     <div>
+                      <Label className="text-base font-semibold">Department</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md">
+                        {selectedPendingRequest.student?.department || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
                       <Label className="text-base font-semibold">Reason for Outpass</Label>
                       <div className="mt-1 p-3 bg-muted rounded-md min-h-[80px]">
                         {selectedPendingRequest.purpose}

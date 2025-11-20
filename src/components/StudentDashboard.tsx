@@ -97,6 +97,16 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
   ).length;
 
   const handleSubmitRequest = async () => {
+    // Check monthly limit before submitting
+    if (usedThisMonth >= monthlyLimit) {
+      toast({
+        title: "Monthly Limit Exceeded",
+        description: `You have already submitted ${monthlyLimit} outpass requests this month. Please try again next month.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Client-side validation
     const validation = outpassRequestSchema.safeParse({
       purpose: newRequest.purpose,
@@ -119,7 +129,19 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
         body: validation.data,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Check if it's a monthly limit error
+        if (error.message?.includes('Monthly outpass limit exceeded')) {
+          toast({
+            title: "Monthly Limit Exceeded",
+            description: "You have already submitted 4 outpass requests this month. Please try again next month.",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast({
         title: "Success",
