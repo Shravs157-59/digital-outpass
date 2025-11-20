@@ -250,6 +250,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         (payload) => {
           console.log('Realtime update:', payload);
           fetchRequests();
+          fetchStudentDetails();
         }
       )
       .subscribe();
@@ -536,6 +537,36 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                       <Label className="text-base font-semibold">Department</Label>
                       <div className="mt-1 p-3 bg-muted rounded-md">
                         {selectedPendingRequest.student?.department || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-semibold">Outpass UUID</Label>
+                      <div className="mt-1 p-3 bg-muted rounded-md font-mono text-sm">
+                        {selectedPendingRequest.id}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This UUID will be used for security verification once approved
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-semibold">Current Status</Label>
+                      <div className="mt-1">
+                        <Badge 
+                          variant={
+                            selectedPendingRequest.status === 'approved' ? 'default' : 
+                            selectedPendingRequest.status === 'rejected' ? 'destructive' : 
+                            'secondary'
+                          }
+                          className={
+                            selectedPendingRequest.status === 'approved' ? 'bg-success hover:bg-success/90 text-lg px-4 py-1' : 
+                            selectedPendingRequest.status === 'pending' ? 'bg-warning hover:bg-warning/90 text-lg px-4 py-1' :
+                            'text-lg px-4 py-1'
+                          }
+                        >
+                          {selectedPendingRequest.status.toUpperCase()}
+                        </Badge>
                       </div>
                     </div>
 

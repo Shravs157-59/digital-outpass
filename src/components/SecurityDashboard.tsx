@@ -126,8 +126,8 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
     const validation = qrCodeSchema.safeParse(qrInput);
     if (!validation.success) {
       toast({
-        title: "Invalid Input",
-        description: validation.error.issues[0]?.message || "Please enter a valid Outpass ID",
+        title: "Invalid UUID",
+        description: "Please enter a valid Outpass UUID",
         variant: "destructive",
       });
       return;
@@ -141,31 +141,115 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
           *,
           student:profiles!student_id (
             full_name,
-            reg_no
+            reg_no,
+            year,
+            department
           )
         `)
         .eq('id', validation.data)
-        .eq('status', 'approved')
         .single();
 
       if (error || !data) {
+        toast({
+          title: "Invalid UUID",
+          description: "This outpass UUID does not exist in the system",
+          variant: "destructive",
+        });
         setScanResult({
           valid: false,
-          error: "Invalid QR Code or Outpass not approved",
+          error: "Invalid UUID - Outpass not found",
         });
         return;
       }
 
+      // Check if outpass is approved
+      if (data.status !== 'approved') {
+        toast({
+          title: "Outpass Not Approved",
+          description: `This outpass is currently ${data.status}. Only approved outpasses can be used for entry.`,
+          variant: "destructive",
+        });
+        setScanResult({
+          valid: false,
+          error: `Outpass is ${data.status} - Cannot grant entry`,
+        });
+        return;
+      }
+
+      // Check if QR code matches (verification that it's been fully approved)
+      if (!data.qr_code || data.qr_code !== data.id) {
+        toast({
+          title: "Verification Failed",
+          description: "This outpass has not completed the full approval process",
+          variant: "destructive",
+        });
+        setScanResult({
+          valid: false,
+          error: "Outpass verification failed",
+        });
+        return;
+      }
+
+      // Check if outpass has already been used (exit recorded)
+      const { data: exitLog, error: logError } = await supabase
+        .from('security_logs')
+        .select('*')
+        .eq('request_id', data.id)
+        .eq('action', 'exit')
+        .order('verified_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (logError) {
+        console.error('Error checking usage:', logError);
+      }
+
+      // Check if there's a corresponding entry (return) for the exit
+      if (exitLog) {
+        const { data: entryLog } = await supabase
+          .from('security_logs')
+          .select('*')
+          .eq('request_id', data.id)
+          .eq('action', 'entry')
+          .gt('verified_at', exitLog.verified_at)
+          .maybeSingle();
+
+        if (!entryLog) {
+          // Student has exited but not returned yet - this is valid for entry
+          const studentData = data.student as any;
+          setScanResult({
+            valid: true,
+            outpassId: data.id,
+            studentName: studentData?.full_name,
+            regNo: studentData?.reg_no,
+            year: studentData?.year,
+            department: studentData?.department,
+            validFrom: data.from_date,
+            validTo: data.to_date,
+            reason: data.purpose,
+            status: data.status,
+            alreadyUsed: true,
+            usageType: 'entry'
+          });
+          return;
+        }
+      }
+
+      // First time use or after previous complete cycle
       const studentData = data.student as any;
       setScanResult({
         valid: true,
         outpassId: data.id,
         studentName: studentData?.full_name,
         regNo: studentData?.reg_no,
+        year: studentData?.year,
+        department: studentData?.department,
         validFrom: data.from_date,
         validTo: data.to_date,
         reason: data.purpose,
         status: data.status,
+        alreadyUsed: false,
+        usageType: 'exit'
       });
     } catch (error: any) {
       toast({
@@ -332,28 +416,93 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                     </div>
                   ) : scanResult.valid ? (
                     <div className="space-y-4">
-                      <div className="flex items-center space-x-2 text-success">
-                        <CheckCircle className="w-5 h-5" />
-                        <span className="font-semibold">Valid Outpass</span>
+                      <div className="p-4 bg-success/10 border border-success/20 rounded-md mb-4">
+                        <div className="flex items-center space-x-2 text-success mb-2">
+                          <CheckCircle className="w-5 h-5" />
+                          <span className="font-semibold">Valid Outpass</span>
+                        </div>
+                        <p className="text-sm font-medium text-success">
+                          {scanResult.usageType === 'exit' 
+                            ? '✓ Ready for Exit' 
+                            : '✓ Ready for Entry (Return)'}
+                        </p>
+                        {scanResult.alreadyUsed && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Student has exited and is now returning to campus
+                          </p>
+                        )}
                       </div>
                       
                       <div className="space-y-2 text-sm">
-                        <p><strong>Outpass ID:</strong> {scanResult.outpassId.slice(0, 8)}</p>
-                        <p><strong>Student:</strong> {scanResult.studentName}</p>
-                        <p><strong>Reg No:</strong> {scanResult.regNo}</p>
-                        <p><strong>Purpose:</strong> {scanResult.reason}</p>
-                        <p><strong>Valid Period:</strong> {new Date(scanResult.validFrom).toLocaleString()} to {new Date(scanResult.validTo).toLocaleString()}</p>
+                        <div>
+                          <p className="text-muted-foreground">Outpass UUID</p>
+                          <p className="font-mono text-xs">{scanResult.outpassId}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Student Name</p>
+                          <p className="font-medium">{scanResult.studentName}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Registration Number</p>
+                          <p className="font-medium">{scanResult.regNo}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Year</p>
+                          <p className="font-medium">{scanResult.year}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Department</p>
+                          <p className="font-medium">{scanResult.department}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Purpose</p>
+                          <p>{scanResult.reason}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Valid Period</p>
+                          <p className="text-xs">{new Date(scanResult.validFrom).toLocaleString()} to {new Date(scanResult.validTo).toLocaleString()}</p>
+                        </div>
                         <Badge className="bg-success text-success-foreground">{scanResult.status.toUpperCase()}</Badge>
                       </div>
                       
                       <div className="flex space-x-2 pt-4">
-                        <Button 
-                          variant="default"
-                          onClick={() => markEntry("exit")}
-                          className="flex-1 bg-warning hover:bg-warning/90"
-                        >
-                          Mark Exit
-                        </Button>
+                        {scanResult.usageType === 'exit' ? (
+                          <Button 
+                            variant="default"
+                            onClick={() => markEntry("exit")}
+                            className="flex-1 bg-success hover:bg-success/90"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Record Exit
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="default"
+                            onClick={() => markEntry("entry")}
+                            className="flex-1 bg-primary hover:bg-primary/90"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Record Entry
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
+                        <div className="flex items-center space-x-2 text-destructive mb-2">
+                          <XCircle className="w-5 h-5" />
+                          <span className="font-semibold">Invalid Outpass</span>
+                        </div>
+                        <p className="text-destructive font-medium">
+                          {scanResult.error}
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Please verify the UUID and try again, or contact the administration.
+                      </p>
+                    </div>
+                  )}
                         <Button 
                           variant="default"
                           onClick={() => markEntry("entry")}
