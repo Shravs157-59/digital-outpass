@@ -26,7 +26,9 @@ interface PendingRequest {
     full_name: string;
     reg_no: string;
     department: string;
+    branch: string;
     year: string;
+    section: string;
   };
 }
 
@@ -63,7 +65,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         .from('outpass_requests')
         .select(`
           *,
-          student:profiles!student_id (
+          student:profiles!outpass_requests_student_id_fkey (
             full_name,
             reg_no,
             department,
@@ -173,7 +175,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         .from('outpass_requests')
         .select(`
           *,
-          student:profiles!student_id (
+          student:profiles!outpass_requests_student_id_fkey (
             full_name,
             reg_no,
             department,
@@ -459,11 +461,11 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                                 className="cursor-pointer hover:bg-muted/50"
                                 onClick={() => setSelectedPendingRequest(request)}
                               >
-                                <TableCell className="font-medium">
-                                  {(request.student as any)?.full_name || 'N/A'}
+                              <TableCell className="font-medium">
+                                  {request.student?.full_name || 'N/A'}
                                 </TableCell>
-                                <TableCell>{(request.student as any)?.reg_no || 'N/A'}</TableCell>
-                                <TableCell>{(request.student as any)?.year || 'N/A'}</TableCell>
+                                <TableCell>{request.student?.reg_no || 'N/A'}</TableCell>
+                                <TableCell>{request.student?.year || 'N/A'}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline">{request.purpose}</Badge>
                                 </TableCell>
@@ -515,28 +517,28 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                     <div>
                       <Label className="text-base font-semibold">Student Name</Label>
                       <div className="mt-1 p-3 bg-muted rounded-md">
-                        {(selectedPendingRequest.student as any)?.full_name || 'N/A'}
+                        {selectedPendingRequest.student?.full_name || 'N/A'}
                       </div>
                     </div>
 
                     <div>
                       <Label className="text-base font-semibold">Roll Number</Label>
                       <div className="mt-1 p-3 bg-muted rounded-md">
-                        {(selectedPendingRequest.student as any)?.reg_no || 'N/A'}
+                        {selectedPendingRequest.student?.reg_no || 'N/A'}
                       </div>
                     </div>
 
                     <div>
                       <Label className="text-base font-semibold">Year</Label>
                       <div className="mt-1 p-3 bg-muted rounded-md">
-                        {(selectedPendingRequest.student as any)?.year || 'N/A'}
+                        {selectedPendingRequest.student?.year || 'N/A'}
                       </div>
                     </div>
 
                     <div>
                       <Label className="text-base font-semibold">Department</Label>
                       <div className="mt-1 p-3 bg-muted rounded-md">
-                        {(selectedPendingRequest.student as any)?.department || 'N/A'}
+                        {selectedPendingRequest.student?.department || 'N/A'}
                       </div>
                     </div>
 
@@ -715,15 +717,15 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
                         {studentDetails.map((request) => (
                           <TableRow key={request.id}>
                             <TableCell className="font-medium">
-                              {(request.student as any)?.full_name || 'N/A'}
+                              {request.student?.full_name || 'N/A'}
                             </TableCell>
-                            <TableCell>{(request.student as any)?.reg_no || 'N/A'}</TableCell>
+                            <TableCell>{request.student?.reg_no || 'N/A'}</TableCell>
                             <TableCell>
-                              {(request.student as any)?.department || 'N/A'}
-                              {(request.student as any)?.year && ` - ${(request.student as any).year}`}
+                              {request.student?.department || 'N/A'}
+                              {request.student?.year && ` - ${request.student.year}`}
                             </TableCell>
                             {userData.role === 'principal' && (
-                              <TableCell>{(request.student as any)?.section || 'N/A'}</TableCell>
+                              <TableCell>{request.student?.section || 'N/A'}</TableCell>
                             )}
                             <TableCell>
                               <Badge variant="outline">{request.purpose}</Badge>
@@ -789,7 +791,7 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
           {selectedRequest && (
             <div className="space-y-4">
               <div className="bg-muted p-4 rounded-lg">
-                <p><strong>Student:</strong> {(selectedRequest.student as any)?.full_name}</p>
+                <p><strong>Student:</strong> {selectedRequest.student?.full_name}</p>
                 <p><strong>Purpose:</strong> {selectedRequest.purpose}</p>
                 <p><strong>Dates:</strong> {new Date(selectedRequest.from_date).toLocaleString()} to {new Date(selectedRequest.to_date).toLocaleString()}</p>
               </div>
