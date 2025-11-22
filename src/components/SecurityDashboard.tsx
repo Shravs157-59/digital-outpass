@@ -503,24 +503,6 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                       </p>
                     </div>
                   )}
-                        <Button 
-                          variant="default"
-                          onClick={() => markEntry("entry")}
-                          className="flex-1 bg-success hover:bg-success/90"
-                        >
-                          Mark Return
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2 text-destructive">
-                        <XCircle className="w-5 h-5" />
-                        <span className="font-semibold">Invalid Outpass</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{scanResult.error}</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </div>
