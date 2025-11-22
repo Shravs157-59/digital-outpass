@@ -320,10 +320,15 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-semibold text-lg">#{request.id.slice(0, 8)}</h3>
+                      <h3 className="font-semibold text-lg">Outpass #{request.id.slice(0, 8)}</h3>
                       <p className="text-muted-foreground">{request.purpose}</p>
                     </div>
-                    <Badge className={getStatusColor(request.status)}>
+                    <Badge 
+                      className={`${getStatusColor(request.status)} text-sm px-3 py-1`}
+                    >
+                      {request.status === 'approved' && '✓ '}
+                      {request.status === 'rejected' && '✗ '}
+                      {request.status === 'pending' && '⏳ '}
                       {request.status.toUpperCase()}
                     </Badge>
                   </div>
@@ -351,18 +356,34 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                         onClick={() => generateQRCode(request.id)}
                       >
                         <QrCode className="w-4 h-4 mr-1" />
-                        QR Code
+                        Show QR Code
                       </Button>
                       <Button variant="outline" size="sm">
                         <Download className="w-4 h-4 mr-1" />
-                        PDF
+                        Download PDF
                       </Button>
                     </div>
                   )}
 
-                  {request.approved_at && (
+                  {request.status === "rejected" && (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 mt-4">
+                      <p className="text-sm text-destructive font-medium">
+                        ❌ This outpass request was rejected
+                      </p>
+                    </div>
+                  )}
+
+                  {request.status === "pending" && (
+                    <div className="bg-warning/10 border border-warning/20 rounded-md p-3 mt-4">
+                      <p className="text-sm text-warning font-medium">
+                        ⏳ Awaiting faculty approval
+                      </p>
+                    </div>
+                  )}
+
+                  {request.approved_at && request.status === "approved" && (
                     <p className="text-xs text-success mt-2">
-                      Approved on: {new Date(request.approved_at).toLocaleString()}
+                      ✓ Approved on: {new Date(request.approved_at).toLocaleString()}
                     </p>
                   )}
                 </CardContent>

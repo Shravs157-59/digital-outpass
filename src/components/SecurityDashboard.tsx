@@ -151,13 +151,14 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
 
       if (error || !data) {
         toast({
-          title: "Invalid UUID",
-          description: "This outpass UUID does not exist in the system",
+          title: "❌ Invalid UUID",
+          description: "This outpass UUID does not exist in the system. Please verify the QR code and try again.",
           variant: "destructive",
         });
         setScanResult({
           valid: false,
-          error: "Invalid UUID - Outpass not found",
+          error: "Invalid UUID - Outpass not found in system",
+          details: "The scanned UUID does not match any outpass request. Verify the QR code is correct."
         });
         return;
       }
@@ -165,13 +166,14 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
       // Check if outpass is approved
       if (data.status !== 'approved') {
         toast({
-          title: "Outpass Not Approved",
-          description: `This outpass is currently ${data.status}. Only approved outpasses can be used for entry.`,
+          title: "⚠️ Outpass Not Approved",
+          description: `This outpass is currently ${data.status.toUpperCase()}. Only approved outpasses can be used for entry/exit.`,
           variant: "destructive",
         });
         setScanResult({
           valid: false,
-          error: `Outpass is ${data.status} - Cannot grant entry`,
+          error: `Outpass Status: ${data.status.toUpperCase()} - Cannot grant entry`,
+          details: "This outpass must be approved by faculty before it can be used. Student should wait for approval."
         });
         return;
       }
@@ -179,13 +181,14 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
       // Check if QR code matches (verification that it's been fully approved)
       if (!data.qr_code || data.qr_code !== data.id) {
         toast({
-          title: "Verification Failed",
-          description: "This outpass has not completed the full approval process",
+          title: "⚠️ Verification Failed",
+          description: "This outpass has not completed the full approval process. QR code verification failed.",
           variant: "destructive",
         });
         setScanResult({
           valid: false,
-          error: "Outpass verification failed",
+          error: "Outpass verification failed - Incomplete approval",
+          details: "The QR code does not match the system records. This may indicate a forged or incomplete outpass."
         });
         return;
       }
@@ -489,18 +492,24 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
-                        <div className="flex items-center space-x-2 text-destructive mb-2">
-                          <XCircle className="w-5 h-5" />
-                          <span className="font-semibold">Invalid Outpass</span>
+                      <div className="p-4 bg-destructive/10 border-2 border-destructive/30 rounded-md">
+                        <div className="flex items-center space-x-2 text-destructive mb-3">
+                          <XCircle className="w-6 h-6" />
+                          <span className="font-bold text-lg">❌ Entry Denied</span>
                         </div>
-                        <p className="text-destructive font-medium">
+                        <p className="text-destructive font-semibold text-base mb-2">
                           {scanResult.error}
                         </p>
+                        {scanResult.details && (
+                          <p className="text-sm text-muted-foreground border-t border-destructive/20 pt-2 mt-2">
+                            {scanResult.details}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Please verify the UUID and try again, or contact the administration.
-                      </p>
+                      <div className="bg-muted/50 p-3 rounded text-sm text-muted-foreground">
+                        <p className="font-medium mb-1">⚠️ Action Required:</p>
+                        <p>Verify the UUID with the student or contact the administration office for assistance.</p>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -527,34 +536,38 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                       <p>No logs recorded yet</p>
                     </div>
                   ) : (
-                    logs.map((log) => (
-                      <div 
-                        key={log.id} 
-                        className="flex justify-between items-center p-4 border rounded-lg hover:bg-muted/50"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <Badge 
-                            className={log.action === "exit" 
-                              ? "bg-warning text-warning-foreground" 
-                              : "bg-success text-success-foreground"
-                            }
-                          >
-                            {log.action.toUpperCase()}
-                          </Badge>
-                          <div>
-                            <p className="font-medium">{log.outpass_requests?.student?.full_name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {log.outpass_requests?.student?.reg_no} • {log.outpass_requests?.purpose}
-                            </p>
+                    logs.map((log) => {
+                      const outpassData = log.outpass_requests as any;
+                      const studentData = outpassData?.student as any;
+                      return (
+                        <div 
+                          key={log.id} 
+                          className="flex justify-between items-center p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <Badge 
+                              className={log.action === "exit" 
+                                ? "bg-warning text-warning-foreground" 
+                                : "bg-success text-success-foreground"
+                              }
+                            >
+                              {log.action.toUpperCase()}
+                            </Badge>
+                            <div>
+                              <p className="font-medium">{studentData?.full_name || 'Unknown Student'}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {studentData?.reg_no || 'N/A'} • {outpassData?.purpose || 'No purpose specified'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="text-right text-sm">
+                            <p className="font-medium">{new Date(log.verified_at).toLocaleString()}</p>
+                            <p className="text-muted-foreground">Main Gate</p>
                           </div>
                         </div>
-                        
-                        <div className="text-right text-sm">
-                          <p className="font-medium">{new Date(log.verified_at).toLocaleString()}</p>
-                          <p className="text-muted-foreground">Main Gate</p>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </CardContent>
