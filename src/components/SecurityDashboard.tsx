@@ -29,6 +29,23 @@ interface LogEntry {
   };
 }
 
+interface ScanResult {
+  valid: boolean;
+  outpassId?: string;
+  studentName?: string;
+  regNo?: string;
+  year?: string;
+  department?: string;
+  validFrom?: string;
+  validTo?: string;
+  reason?: string;
+  status?: string;
+  alreadyUsed?: boolean;
+  usageType?: 'entry' | 'exit';
+  error?: string;
+  details?: string;
+}
+
 interface SecurityDashboardProps {
   userData: any;
   onLogout: () => void;
@@ -36,7 +53,7 @@ interface SecurityDashboardProps {
 
 export default function SecurityDashboard({ userData, onLogout }: SecurityDashboardProps) {
   const [qrInput, setQrInput] = useState("");
-  const [scanResult, setScanResult] = useState<any>(null);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -53,12 +70,12 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
         .from('security_logs')
         .select(`
           *,
-          outpass_requests!request_id (
+          outpass_requests!security_logs_request_id_fkey (
             id,
             purpose,
             from_date,
             to_date,
-            student:profiles!student_id (
+            student:profiles!outpass_requests_student_id_fkey (
               full_name,
               reg_no
             )
@@ -139,7 +156,7 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
         .from('outpass_requests')
         .select(`
           *,
-          student:profiles!student_id (
+          student:profiles!outpass_requests_student_id_fkey (
             full_name,
             reg_no,
             year,
@@ -219,14 +236,13 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
 
         if (!entryLog) {
           // Student has exited but not returned yet - this is valid for entry
-          const studentData = data.student as any;
           setScanResult({
             valid: true,
             outpassId: data.id,
-            studentName: studentData?.full_name,
-            regNo: studentData?.reg_no,
-            year: studentData?.year,
-            department: studentData?.department,
+            studentName: data.student?.full_name,
+            regNo: data.student?.reg_no,
+            year: data.student?.year,
+            department: data.student?.department,
             validFrom: data.from_date,
             validTo: data.to_date,
             reason: data.purpose,
@@ -239,14 +255,13 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
       }
 
       // First time use or after previous complete cycle
-      const studentData = data.student as any;
       setScanResult({
         valid: true,
         outpassId: data.id,
-        studentName: studentData?.full_name,
-        regNo: studentData?.reg_no,
-        year: studentData?.year,
-        department: studentData?.department,
+        studentName: data.student?.full_name,
+        regNo: data.student?.reg_no,
+        year: data.student?.year,
+        department: data.student?.department,
         validFrom: data.from_date,
         validTo: data.to_date,
         reason: data.purpose,
@@ -537,8 +552,8 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                     </div>
                   ) : (
                     logs.map((log) => {
-                      const outpassData = log.outpass_requests as any;
-                      const studentData = outpassData?.student as any;
+                      const outpassData = log.outpass_requests;
+                      const studentData = outpassData?.student;
                       return (
                         <div 
                           key={log.id} 
