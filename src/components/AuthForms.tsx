@@ -182,32 +182,37 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
       }
 
       // Wait for trigger to create basic profile
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Use upsert to ensure profile is created/updated
+      // Update the profile with role-specific details
+      const profileUpdate: any = {
+        photo_url: photoUrl
+      };
+
+      // Add role-specific fields
+      if (role === 'student') {
+        profileUpdate.department = formData.dept;
+        profileUpdate.branch = formData.dept;
+        profileUpdate.year = formData.year;
+        profileUpdate.section = formData.section;
+        profileUpdate.reg_no = formData.regNo;
+      } else if (role === 'classincharge' || role === 'coordinator' || role === 'hod' || role === 'principal') {
+        profileUpdate.employee_id = formData.employeeId;
+        profileUpdate.department = formData.dept;
+      } else if (role === 'security') {
+        profileUpdate.security_id = formData.securityId;
+      }
+
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          email: formData.email,
-          full_name: formData.fullName,
-          role: dbRole as any,
-          department: formData.dept || null,
-          branch: formData.dept || null,
-          year: formData.year || null,
-          section: formData.section || null,
-          reg_no: formData.regNo || null,
-          employee_id: formData.employeeId || null,
-          security_id: formData.securityId || null,
-        } as any, {
-          onConflict: 'id'
-        });
+        .update(profileUpdate)
+        .eq('id', authData.user.id);
 
       if (profileError) {
-        console.error('Profile upsert error:', profileError);
+        console.error('Profile update error:', profileError);
         toast({
           title: "Registration Failed",
-          description: profileError.message || "Database error saving new user",
+          description: profileError.message,
           variant: "destructive"
         });
         setIsLoading(false);
