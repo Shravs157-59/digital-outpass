@@ -131,14 +131,19 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
 
       if (error) {
         // Check if it's a monthly limit error
-        if (error.message?.includes('Monthly outpass limit exceeded')) {
+        const errorMessage = error.message || error.context?.error || JSON.stringify(error);
+        if (errorMessage.includes('Monthly outpass limit exceeded')) {
           toast({
             title: "Monthly Limit Exceeded",
             description: "You have already submitted 4 outpass requests this month. Please try again next month.",
             variant: "destructive",
           });
         } else {
-          throw error;
+          toast({
+            title: "Error",
+            description: errorMessage.includes('error') ? errorMessage : "Could not submit request. Please try again.",
+            variant: "destructive",
+          });
         }
         return;
       }
