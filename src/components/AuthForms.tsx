@@ -488,21 +488,21 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                         )}
                       </div>
                       
+                      <div className="space-y-2">
+                        <Label htmlFor="dob">Date of Birth</Label>
+                        <Input
+                          id="dob"
+                          type="date"
+                          value={formData.dob}
+                          onChange={(e) => handleInputChange("dob", e.target.value)}
+                          required
+                        />
+                      </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="dob">Date of Birth</Label>
-                          <Input
-                            id="dob"
-                            type="date"
-                            value={formData.dob}
-                            onChange={(e) => handleInputChange("dob", e.target.value)}
-                            required
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
                           <Label htmlFor="dept">Department</Label>
-                          <Select value={formData.dept} onValueChange={(value) => handleInputChange("dept", value)}>
+                          <Select value={formData.dept} onValueChange={(value) => handleInputChange("dept", value)} required>
                             <SelectTrigger>
                               <SelectValue placeholder="Select department" />
                             </SelectTrigger>
@@ -515,6 +515,43 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
                             </SelectContent>
                           </Select>
                         </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="year">Year</Label>
+                          <Select value={formData.year} onValueChange={(value) => handleInputChange("year", value)} required>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select year" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {years.map((year) => (
+                                <SelectItem key={year} value={year}>
+                                  {year}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="section">Section</Label>
+                        <Select 
+                          value={formData.section} 
+                          onValueChange={(value) => handleInputChange("section", value)}
+                          disabled={!formData.dept || !formData.year}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={!formData.dept || !formData.year ? "Select department and year first" : "Select section"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {formData.dept && formData.year && getDepartmentSections(formData.dept, formData.year).map((section) => (
+                              <SelectItem key={section} value={section}>
+                                Section {section}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">
