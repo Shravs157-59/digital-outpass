@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, Download, Plus, User, LogOut, QrCode } from "lucide-react";
+import { Calendar, Clock, Download, Plus, User, LogOut, QrCode, Pencil } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { outpassRequestSchema } from "@/lib/schemas";
 
@@ -41,6 +42,14 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
   });
 
   const [showNewRequestDialog, setShowNewRequestDialog] = useState(false);
+  const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    reg_no: userData.reg_no || "",
+    department: userData.department || "",
+    year: userData.year || "",
+    section: userData.section || "",
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // Check if profile is complete
   const isProfileComplete = Boolean(
@@ -206,6 +215,48 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
     alert(`QR Code for ${requestId}. Implementation needed for actual QR generation.`);
   };
 
+  const handleSaveProfile = async () => {
+    if (!profileForm.reg_no || !profileForm.department || !profileForm.year || !profileForm.section) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          reg_no: profileForm.reg_no.trim(),
+          department: profileForm.department,
+          year: profileForm.year,
+          section: profileForm.section.trim().toUpperCase(),
+        })
+        .eq("id", userData.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully. Please refresh to see changes.",
+      });
+      setShowEditProfileDialog(false);
+      // Trigger page refresh to get updated userData
+      window.location.reload();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
@@ -236,20 +287,97 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
         {!isProfileComplete && (
           <Card className="mb-6 border-warning bg-warning/10">
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center">
-                  <User className="w-5 h-5 text-warning" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center">
+                    <User className="w-5 h-5 text-warning" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-warning">Profile Incomplete</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Missing: {missingFields.join(", ")}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-warning">Profile Incomplete</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Please contact admin to update your profile. Missing: {missingFields.join(", ")}
-                  </p>
-                </div>
+                <Button variant="outline" size="sm" onClick={() => setShowEditProfileDialog(true)}>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Complete Profile
+                </Button>
               </div>
             </CardContent>
           </Card>
         )}
+
+        {/* Edit Profile Dialog */}
+        <Dialog open={showEditProfileDialog} onOpenChange={setShowEditProfileDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="reg_no">Roll Number / Registration Number</Label>
+                <Input
+                  id="reg_no"
+                  placeholder="e.g., 21A91A0501"
+                  value={profileForm.reg_no}
+                  onChange={(e) => setProfileForm(prev => ({ ...prev, reg_no: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Select
+                  value={profileForm.department}
+                  onValueChange={(value) => setProfileForm(prev => ({ ...prev, department: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CSE">Computer Science & Engineering</SelectItem>
+                    <SelectItem value="ECE">Electronics & Communication</SelectItem>
+                    <SelectItem value="EEE">Electrical & Electronics</SelectItem>
+                    <SelectItem value="MECH">Mechanical Engineering</SelectItem>
+                    <SelectItem value="CIVIL">Civil Engineering</SelectItem>
+                    <SelectItem value="IT">Information Technology</SelectItem>
+                    <SelectItem value="AIDS">AI & Data Science</SelectItem>
+                    <SelectItem value="AIML">AI & Machine Learning</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="year">Year</Label>
+                <Select
+                  value={profileForm.year}
+                  onValueChange={(value) => setProfileForm(prev => ({ ...prev, year: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1st Year</SelectItem>
+                    <SelectItem value="2">2nd Year</SelectItem>
+                    <SelectItem value="3">3rd Year</SelectItem>
+                    <SelectItem value="4">4th Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="section">Section</Label>
+                <Input
+                  id="section"
+                  placeholder="e.g., A, B, C"
+                  value={profileForm.section}
+                  onChange={(e) => setProfileForm(prev => ({ ...prev, section: e.target.value }))}
+                  maxLength={2}
+                />
+              </div>
+            </div>
+            <Button onClick={handleSaveProfile} className="w-full mt-4" disabled={savingProfile}>
+              {savingProfile ? "Saving..." : "Save Profile"}
+            </Button>
+          </DialogContent>
+        </Dialog>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
