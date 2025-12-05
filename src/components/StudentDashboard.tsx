@@ -42,6 +42,21 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
 
   const [showNewRequestDialog, setShowNewRequestDialog] = useState(false);
 
+  // Check if profile is complete
+  const isProfileComplete = Boolean(
+    userData.reg_no && 
+    userData.department && 
+    userData.year && 
+    userData.section
+  );
+
+  const missingFields = [
+    !userData.reg_no && "Roll Number",
+    !userData.department && "Department",
+    !userData.year && "Year",
+    !userData.section && "Section"
+  ].filter(Boolean);
+
   // Fetch student's outpass requests
   const fetchRequests = async () => {
     try {
@@ -97,6 +112,16 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
   ).length;
 
   const handleSubmitRequest = async () => {
+    // Check profile completeness first
+    if (!isProfileComplete) {
+      toast({
+        title: "Profile Incomplete",
+        description: `Please complete your profile first. Missing: ${missingFields.join(", ")}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check monthly limit before submitting
     if (usedThisMonth >= monthlyLimit) {
       toast({
@@ -207,6 +232,25 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Profile Incomplete Warning */}
+        {!isProfileComplete && (
+          <Card className="mb-6 border-warning bg-warning/10">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-warning" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-warning">Profile Incomplete</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Please contact admin to update your profile. Missing: {missingFields.join(", ")}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
@@ -252,7 +296,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
           <h2 className="text-2xl font-bold">Outpass Requests</h2>
           <Dialog open={showNewRequestDialog} onOpenChange={setShowNewRequestDialog}>
             <DialogTrigger asChild>
-              <Button variant="default" size="lg">
+              <Button variant="default" size="lg" disabled={!isProfileComplete}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Request
               </Button>
