@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, User, LogOut, Calendar, BarChart3 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, User, LogOut, Calendar, BarChart3, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { approvalSchema } from "@/lib/schemas";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import BulkProfileImport from "./BulkProfileImport";
 
 interface PendingRequest {
   id: string;
@@ -413,10 +414,16 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
         </div>
 
         <Tabs defaultValue="pending" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${userData.role === 'principal' ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="pending">Pending Requests</TabsTrigger>
             <TabsTrigger value="students">Student Details</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
+            {userData.role === 'principal' && (
+              <TabsTrigger value="admin">
+                <Settings className="w-4 h-4 mr-1" />
+                Admin
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="pending" className="space-y-4 mt-6">
@@ -776,6 +783,13 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Admin Tab - Principal Only */}
+          {userData.role === 'principal' && (
+            <TabsContent value="admin" className="space-y-4 mt-6">
+              <BulkProfileImport />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
