@@ -82,54 +82,35 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       if (error) throw error;
       setPendingRequests(data as any || []);
 
-      // Calculate stats
+      // Calculate stats using approvals table (accessible via RLS even after request moves on)
       const today = new Date().toISOString().split('T')[0];
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Get approval count based on role level
-      const roleColumn = userData.role === 'class_incharge' ? 'class_incharge_id' : 
-                        userData.role === 'hod' ? 'hod_id' : 
-                        userData.role === 'principal' ? 'principal_id' : null;
-      
-      const approvedAtColumn = userData.role === 'class_incharge' ? 'class_incharge_approved_at' : 
-                              userData.role === 'hod' ? 'hod_approved_at' : 
-                              userData.role === 'principal' ? 'principal_approved_at' : null;
-
-      let approvedTodayCount = 0;
-      let rejectedTodayCount = 0;
-      let weeklyTotalCount = 0;
-
-      if (roleColumn && approvedAtColumn) {
-        const { count: approvedCount } = await supabase
-          .from('outpass_requests')
-          .select('id', { count: 'exact', head: true })
-          .eq(roleColumn, userData.id)
-          .gte(approvedAtColumn, today);
-        approvedTodayCount = approvedCount || 0;
-      }
-
-      const { count: rejectedCount } = await supabase
-        .from('outpass_requests')
+      const { count: approvedTodayCount } = await supabase
+        .from('approvals')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'rejected')
-        .eq('rejected_by', userData.id)
-        .gte('rejected_at', today);
-      rejectedTodayCount = rejectedCount || 0;
+        .eq('approver_id', userData.id)
+        .eq('action', 'approved')
+        .gte('created_at', today);
 
-      if (roleColumn) {
-        const { count: weeklyCount } = await supabase
-          .from('outpass_requests')
-          .select('id', { count: 'exact', head: true })
-          .or(`${roleColumn}.eq.${userData.id},rejected_by.eq.${userData.id}`)
-          .gte('created_at', weekAgo);
-        weeklyTotalCount = weeklyCount || 0;
-      }
+      const { count: rejectedTodayCount } = await supabase
+        .from('approvals')
+        .select('id', { count: 'exact', head: true })
+        .eq('approver_id', userData.id)
+        .eq('action', 'rejected')
+        .gte('created_at', today);
+
+      const { count: weeklyTotalCount } = await supabase
+        .from('approvals')
+        .select('id', { count: 'exact', head: true })
+        .eq('approver_id', userData.id)
+        .gte('created_at', weekAgo);
 
       setStats({
         pending: data?.length || 0,
-        approvedToday: approvedTodayCount,
-        rejectedToday: rejectedTodayCount,
-        totalThisWeek: weeklyTotalCount
+        approvedToday: approvedTodayCount || 0,
+        rejectedToday: rejectedTodayCount || 0,
+        totalThisWeek: weeklyTotalCount || 0
       });
     } catch (error: any) {
       toast({
