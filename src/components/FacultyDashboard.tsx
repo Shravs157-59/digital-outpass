@@ -321,7 +321,8 @@ export default function FacultyDashboard({ userData, onLogout }: FacultyDashboar
       setSelectedRequest(null);
       setActionType(null);
       setRemarks("");
-      fetchRequests();
+      await fetchRequests();
+      await fetchStudentDetails();
     } catch (error: any) {
       console.error('Process request error:', error);
       toast({
