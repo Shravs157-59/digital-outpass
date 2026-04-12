@@ -84,14 +84,18 @@ serve(async (req) => {
       );
     }
 
-    // Create the outpass request with initial visibility to class_incharge only
+    const requestId = crypto.randomUUID();
+
+    // Create the outpass request with a stable UUID used across student, faculty, and security flows
     const { data: request, error: insertError } = await supabase
       .from('outpass_requests')
       .insert({
+        id: requestId,
         student_id: user.id,
         purpose,
         from_date,
         to_date,
+        qr_code: requestId,
         status: 'pending',
         visible_to_roles: ['class_incharge'],
       })
