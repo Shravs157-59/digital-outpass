@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, Download, Plus, User, LogOut, QrCode, Pencil } from "lucide-react";
+import { Calendar, Clock, Copy, Check, Download, Plus, User, LogOut, QrCode, Pencil, ShieldCheck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { outpassRequestSchema } from "@/lib/schemas";
