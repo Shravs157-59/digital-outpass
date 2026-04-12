@@ -211,8 +211,17 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
     }
   };
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedId(text);
+    toast({ title: "Copied!", description: "Outpass ID copied to clipboard" });
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const generateQRCode = (requestId: string) => {
-    alert(`QR Code for ${requestId}. Implementation needed for actual QR generation.`);
+    copyToClipboard(requestId);
   };
 
   const handleSaveProfile = async () => {
