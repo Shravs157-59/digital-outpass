@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, Download, Plus, User, LogOut, QrCode, Pencil } from "lucide-react";
+import { Calendar, Clock, Copy, Check, Download, Plus, User, LogOut, QrCode, Pencil, ShieldCheck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { outpassRequestSchema } from "@/lib/schemas";
@@ -211,8 +211,17 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
     }
   };
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedId(text);
+    toast({ title: "Copied!", description: "Outpass ID copied to clipboard" });
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const generateQRCode = (requestId: string) => {
-    alert(`QR Code for ${requestId}. Implementation needed for actual QR generation.`);
+    copyToClipboard(requestId);
   };
 
   const handleSaveProfile = async () => {
@@ -509,6 +518,27 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                       {request.status.toUpperCase()}
                     </Badge>
                   </div>
+
+                  {/* Outpass UUID - always visible */}
+                  <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-muted/50 border">
+                    <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Outpass Verification ID</p>
+                      <code className="text-sm font-mono break-all">{request.id}</code>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-8 w-8"
+                      onClick={() => copyToClipboard(request.id)}
+                    >
+                      {copiedId === request.id ? (
+                        <Check className="w-4 h-4 text-success" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
@@ -526,26 +556,29 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                   </div>
                   
                   {request.status === "approved" && (
-                    <div className="flex space-x-2 mt-4">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => generateQRCode(request.id)}
-                      >
-                        <QrCode className="w-4 h-4 mr-1" />
-                        Show QR Code
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Download className="w-4 h-4 mr-1" />
-                        Download PDF
-                      </Button>
+                    <div className="mt-4 space-y-3">
+                      <div className="bg-success/10 border border-success/20 rounded-md p-3">
+                        <p className="text-sm text-success font-medium">
+                          ✓ Approved — Show this ID at the security gate for verification
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => copyToClipboard(request.id)}
+                        >
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy ID for Security
+                        </Button>
+                      </div>
                     </div>
                   )}
 
                   {request.status === "rejected" && (
                     <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 mt-4">
                       <p className="text-sm text-destructive font-medium">
-                        ❌ This outpass request was rejected
+                        ❌ This outpass request was rejected — UUID cannot be used for verification
                       </p>
                     </div>
                   )}
@@ -553,7 +586,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                   {request.status === "pending" && (
                     <div className="bg-warning/10 border border-warning/20 rounded-md p-3 mt-4">
                       <p className="text-sm text-warning font-medium">
-                        ⏳ Awaiting faculty approval
+                        ⏳ Awaiting faculty approval — UUID will be valid for security verification once approved
                       </p>
                     </div>
                   )}
