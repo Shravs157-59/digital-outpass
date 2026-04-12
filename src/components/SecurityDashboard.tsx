@@ -140,7 +140,8 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
   }, []);
 
   const handleQRScan = async () => {
-    const validation = qrCodeSchema.safeParse(qrInput);
+    const normalizedInput = qrInput.trim();
+    const validation = qrCodeSchema.safeParse(normalizedInput);
     if (!validation.success) {
       toast({
         title: "Invalid UUID",
@@ -151,124 +152,27 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
     }
 
     try {
-      // Fetch approved outpass request
-      const { data, error } = await supabase
-        .from('outpass_requests')
-        .select(`
-          *,
-          student:profiles!outpass_requests_student_id_fkey (
-            full_name,
-            reg_no,
-            year,
-            department
-          )
-        `)
-        .eq('id', validation.data)
-        .single();
-
-      if (error || !data) {
-        toast({
-          title: "❌ Invalid UUID",
-          description: "This outpass UUID does not exist in the system. Please verify the QR code and try again.",
-          variant: "destructive",
-        });
-        setScanResult({
-          valid: false,
-          error: "Invalid UUID - Outpass not found in system",
-          details: "The scanned UUID does not match any outpass request. Verify the QR code is correct."
-        });
-        return;
-      }
-
-      // Check if outpass is approved
-      if (data.status !== 'approved') {
-        toast({
-          title: "⚠️ Outpass Not Approved",
-          description: `This outpass is currently ${data.status.toUpperCase()}. Only approved outpasses can be used for entry/exit.`,
-          variant: "destructive",
-        });
-        setScanResult({
-          valid: false,
-          error: `Outpass Status: ${data.status.toUpperCase()} - Cannot grant entry`,
-          details: "This outpass must be approved by faculty before it can be used. Student should wait for approval."
-        });
-        return;
-      }
-
-      // Check if QR code matches (verification that it's been fully approved)
-      if (!data.qr_code || data.qr_code !== data.id) {
-        toast({
-          title: "⚠️ Verification Failed",
-          description: "This outpass has not completed the full approval process. QR code verification failed.",
-          variant: "destructive",
-        });
-        setScanResult({
-          valid: false,
-          error: "Outpass verification failed - Incomplete approval",
-          details: "The QR code does not match the system records. This may indicate a forged or incomplete outpass."
-        });
-        return;
-      }
-
-      // Check if outpass has already been used (exit recorded)
-      const { data: exitLog, error: logError } = await supabase
-        .from('security_logs')
-        .select('*')
-        .eq('request_id', data.id)
-        .eq('action', 'exit')
-        .order('verified_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (logError) {
-        console.error('Error checking usage:', logError);
-      }
-
-      // Check if there's a corresponding entry (return) for the exit
-      if (exitLog) {
-        const { data: entryLog } = await supabase
-          .from('security_logs')
-          .select('*')
-          .eq('request_id', data.id)
-          .eq('action', 'entry')
-          .gt('verified_at', exitLog.verified_at)
-          .maybeSingle();
-
-        if (!entryLog) {
-          // Student has exited but not returned yet - this is valid for entry
-          setScanResult({
-            valid: true,
-            outpassId: data.id,
-            studentName: data.student?.full_name,
-            regNo: data.student?.reg_no,
-            year: data.student?.year,
-            department: data.student?.department,
-            validFrom: data.from_date,
-            validTo: data.to_date,
-            reason: data.purpose,
-            status: data.status,
-            alreadyUsed: true,
-            usageType: 'entry'
-          });
-          return;
-        }
-      }
-
-      // First time use or after previous complete cycle
-      setScanResult({
-        valid: true,
-        outpassId: data.id,
-        studentName: data.student?.full_name,
-        regNo: data.student?.reg_no,
-        year: data.student?.year,
-        department: data.student?.department,
-        validFrom: data.from_date,
-        validTo: data.to_date,
-        reason: data.purpose,
-        status: data.status,
-        alreadyUsed: false,
-        usageType: 'exit'
+      const { data, error } = await supabase.functions.invoke('verify-outpass', {
+        body: { uuid: validation.data },
       });
+
+      if (error) {
+        throw new Error(error.message || "Could not verify the outpass");
+      }
+
+      if (!data) {
+        throw new Error("Empty verification response");
+      }
+
+      setScanResult(data as ScanResult);
+
+      if (!data.valid) {
+        toast({
+          title: data.status ? "⚠️ Outpass Not Approved" : "❌ Invalid UUID",
+          description: data.details || data.error || "Verification failed",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error",
