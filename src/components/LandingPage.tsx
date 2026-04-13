@@ -1,3 +1,19 @@
+/**
+ * LandingPage.tsx
+ * 
+ * TYPESCRIPT CONCEPTS IN THIS FILE:
+ * 
+ * 1. React.ReactNode — A special TypeScript type meaning "anything React can render."
+ *    Includes: strings, numbers, JSX elements, arrays, null, etc.
+ *    Example: icon: React.ReactNode — the icon can be any renderable React content.
+ * 
+ * 2. TYPED ARRAYS — "const roles: Role[]" means "roles is an array of Role objects."
+ *    The "[]" suffix after a type means "array of that type."
+ * 
+ * 3. TYPE INFERENCE — When you write: const [showRoleDialog, setShowRoleDialog] = useState(false)
+ *    TypeScript automatically infers this is boolean — you don't need to specify <boolean>.
+ */
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -6,14 +22,19 @@ import { GraduationCap, Users, UserCheck, Crown, Shield, User } from "lucide-rea
 import collegeLogo from "@/assets/lendi-logo.png";
 import heroBackground from "@/assets/lendi-campus.png";
 
+/**
+ * INTERFACE for a Role object.
+ * React.ReactNode means the icon can be any JSX element (like <Shield />, <User />, etc.)
+ */
 interface Role {
   id: string;
   name: string;
-  icon: React.ReactNode;
+  icon: React.ReactNode;   // React.ReactNode = any valid React renderable content
   description: string;
   color: string;
 }
 
+/** TYPED ARRAY: Role[] means this is an array where each element matches the Role interface */
 const roles: Role[] = [
   {
     id: "student",

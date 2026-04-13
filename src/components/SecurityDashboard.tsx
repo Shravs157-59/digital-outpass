@@ -1,3 +1,17 @@
+/**
+ * SecurityDashboard.tsx
+ * 
+ * TYPESCRIPT CONCEPTS IN THIS FILE:
+ * 
+ * 1. NESTED INTERFACES — LogEntry has outpass_requests which itself has a student object.
+ *    This is how you describe deeply nested API response shapes.
+ * 
+ * 2. LITERAL UNION TYPES — usageType?: 'entry' | 'exit'
+ *    Can ONLY be one of these exact string values.
+ * 
+ * 3. OPTIONAL CHAINING used with "?" in types and in code (e.g., data?.student?.full_name)
+ */
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +24,7 @@ import { Shield, QrCode, LogOut, User, Clock, CheckCircle, XCircle, Search } fro
 import { useToast } from "@/hooks/use-toast";
 import { qrCodeSchema } from "@/lib/schemas";
 
+/** Deeply nested interface — models the security log entry with related outpass data */
 interface LogEntry {
   id: string;
   request_id: string;
@@ -17,20 +32,25 @@ interface LogEntry {
   action: string;
   verified_at: string;
   notes?: string;
-  outpass_requests?: {
+  outpass_requests?: {      // Optional nested object from a database JOIN
     id: string;
     purpose: string;
     from_date: string;
     to_date: string;
-    student?: {
+    student?: {             // Another level of nesting (student inside outpass)
       full_name: string;
       reg_no: string;
     };
   };
 }
 
+/**
+ * ScanResult — represents the verification response from the backend.
+ * Almost all fields are optional ("?") because the response varies
+ * based on whether the outpass is valid or not.
+ */
 interface ScanResult {
-  valid: boolean;
+  valid: boolean;           // Only required field — was verification successful?
   outpassId?: string;
   studentName?: string;
   regNo?: string;
@@ -41,7 +61,7 @@ interface ScanResult {
   reason?: string;
   status?: string;
   alreadyUsed?: boolean;
-  usageType?: 'entry' | 'exit';
+  usageType?: 'entry' | 'exit';  // LITERAL UNION: can only be 'entry' or 'exit'
   error?: string;
   details?: string;
 }

@@ -1,6 +1,24 @@
+/**
+ * Index.tsx — Main page component (app entry point)
+ * 
+ * TYPESCRIPT CONCEPTS:
+ * 
+ * 1. TYPE ALIAS — "type AppState = ..." creates a custom type name.
+ *    Unlike "interface", "type" can define unions, primitives, etc.
+ *    Example: type AppState = "landing" | "auth" | "dashboard"
+ *    This means AppState can ONLY be one of these three exact strings.
+ * 
+ * 2. IMPORTED TYPES — "import { Session } from '@supabase/supabase-js'"
+ *    Session is a TypeScript type from the Supabase library that describes
+ *    what a user session object looks like.
+ * 
+ * 3. STATE with UNION TYPES:
+ *    useState<Session | null>(null) — session is either a Session object or null.
+ */
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
+import { Session } from "@supabase/supabase-js";  // Importing a TYPE from a library
 import LandingPage from "@/components/LandingPage";
 import AuthForms from "@/components/AuthForms";
 import StudentDashboard from "@/components/StudentDashboard";
@@ -8,6 +26,11 @@ import FacultyDashboard from "@/components/FacultyDashboard";
 import SecurityDashboard from "@/components/SecurityDashboard";
 import { useToast } from "@/hooks/use-toast";
 
+/**
+ * TYPE ALIAS — Creates a custom type that can ONLY be one of these literal strings.
+ * If you try: setAppState("home") — TypeScript will show an error!
+ * In plain JS, you'd just use a string variable with no restriction.
+ */
 type AppState = "landing" | "auth" | "dashboard";
 
 const Index = () => {

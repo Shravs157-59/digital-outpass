@@ -1,3 +1,39 @@
+/**
+ * StudentDashboard.tsx
+ * 
+ * This component renders the student's main dashboard where they can:
+ * - View their outpass requests and statuses
+ * - Submit new outpass requests
+ * - View QR codes for approved outpasses
+ * - Edit their profile
+ * 
+ * TYPESCRIPT CONCEPTS USED IN THIS FILE:
+ * 
+ * 1. INTERFACE — Defines the "shape" of an object (like a blueprint).
+ *    In plain JS, you'd just use objects without defining their structure.
+ *    Example: interface OutpassRequest { id: string; ... }
+ *    This tells TypeScript: "Every OutpassRequest object MUST have these fields."
+ * 
+ * 2. TYPE ANNOTATIONS — The ": type" syntax after variables/parameters.
+ *    Example: const [loading, setLoading] = useState<boolean>(true)
+ *    In plain JS, this would just be: const [loading, setLoading] = useState(true)
+ * 
+ * 3. GENERICS — The <Type> syntax in angle brackets.
+ *    Example: useState<OutpassRequest[]>([])
+ *    This tells useState: "This state will hold an ARRAY of OutpassRequest objects."
+ *    In plain JS, you'd just write: useState([])
+ * 
+ * 4. OPTIONAL PROPERTIES — The "?" after a property name.
+ *    Example: approved_by?: string | null
+ *    Means this property may or may not exist on the object.
+ * 
+ * 5. UNION TYPES — The "|" symbol combining multiple types.
+ *    Example: string | null means "can be a string OR null"
+ * 
+ * 6. TYPE ASSERTION — "error: any" in catch blocks.
+ *    "any" means "skip type checking for this variable."
+ */
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +50,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { outpassRequestSchema } from "@/lib/schemas";
 
+/**
+ * INTERFACE: Defines what an OutpassRequest object looks like.
+ * Every field has a type (string, boolean, etc.).
+ * "?" means the field is optional (may not exist).
+ * "string | null" means the value can be either a string or null.
+ * 
+ * In plain JavaScript, you wouldn't define this — you'd just use the object directly.
+ * TypeScript uses this to catch errors like: request.stauts (typo!) at compile time.
+ */
 interface OutpassRequest {
   id: string;
   purpose: string;
@@ -21,21 +66,47 @@ interface OutpassRequest {
   from_date: string;
   to_date: string;
   status: string;
-  approved_by?: string | null;
+  approved_by?: string | null;    // "?" = optional, "|" = can be string OR null
   qr_code?: string | null;
   approved_at?: string | null;
   rejection_reason?: string | null;
   rejected_at?: string | null;
 }
 
+/**
+ * INTERFACE for component props.
+ * In React, "props" are the inputs a component receives from its parent.
+ * 
+ * userData: any — "any" means it can be ANY type (no type checking).
+ *   This is a shortcut; ideally you'd define the exact shape.
+ * onLogout: () => void — A function that takes no arguments and returns nothing.
+ *   "() => void" is the TypeScript way to describe a callback function.
+ */
 interface StudentDashboardProps {
-  userData: any;
-  onLogout: () => void;
+  userData: any;       // "any" = accepts any data type (flexible but less safe)
+  onLogout: () => void; // "() => void" = function with no params, no return value
 }
 
+/**
+ * COMPONENT DEFINITION with typed props.
+ * 
+ * "{ userData, onLogout }: StudentDashboardProps" means:
+ * - Destructure props into userData and onLogout
+ * - The props must match the StudentDashboardProps interface
+ * 
+ * In plain JS, this would be: function StudentDashboard({ userData, onLogout })
+ */
 export default function StudentDashboard({ userData, onLogout }: StudentDashboardProps) {
+  /**
+   * GENERIC TYPE in useState:
+   * useState<OutpassRequest[]>([]) means:
+   * - This state holds an ARRAY ([]) of OutpassRequest objects
+   * - Initial value is an empty array
+   * 
+   * In plain JS: const [outpassRequests, setOutpassRequests] = useState([])
+   */
   const [outpassRequests, setOutpassRequests] = useState<OutpassRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // TypeScript infers this is boolean
   const { toast } = useToast();
 
   const [newRequest, setNewRequest] = useState({

@@ -1,3 +1,17 @@
+/**
+ * App.tsx — Root component of the React application.
+ * 
+ * TYPESCRIPT CONCEPTS:
+ * 
+ * 1. ARROW FUNCTION with implicit return:
+ *    "const App = () => (...)" is an arrow function that returns JSX.
+ *    The ": React.FC" type annotation is NOT used here — TypeScript infers the type.
+ * 
+ * 2. This file has MINIMAL TypeScript — it looks almost identical to plain JavaScript.
+ *    The only difference is the file extension (.tsx instead of .jsx).
+ *    ".tsx" tells the compiler: "This file contains JSX AND TypeScript."
+ */
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
