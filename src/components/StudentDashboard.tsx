@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock, Copy, Check, Download, Plus, User, LogOut, QrCode, Pencil, ShieldCheck } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { outpassRequestSchema } from "@/lib/schemas";
@@ -23,6 +24,8 @@ interface OutpassRequest {
   approved_by?: string | null;
   qr_code?: string | null;
   approved_at?: string | null;
+  rejection_reason?: string | null;
+  rejected_at?: string | null;
 }
 
 interface StudentDashboardProps {
@@ -212,6 +215,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
   };
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showQrDialog, setShowQrDialog] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -559,27 +563,45 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                     <div className="mt-4 space-y-3">
                       <div className="bg-success/10 border border-success/20 rounded-md p-3">
                         <p className="text-sm text-success font-medium">
-                          ✓ Approved — Show this ID at the security gate for verification
+                          ✓ Approved — Show the QR code or ID at the security gate
                         </p>
                       </div>
                       <div className="flex space-x-2">
                         <Button 
                           variant="outline" 
                           size="sm"
+                          onClick={() => setShowQrDialog(request.id)}
+                        >
+                          <QrCode className="w-4 h-4 mr-1" />
+                          Show QR Code
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
                           onClick={() => copyToClipboard(request.id)}
                         >
                           <Copy className="w-4 h-4 mr-1" />
-                          Copy ID for Security
+                          Copy ID
                         </Button>
                       </div>
                     </div>
                   )}
 
                   {request.status === "rejected" && (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 mt-4">
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 mt-4 space-y-1">
                       <p className="text-sm text-destructive font-medium">
-                        ❌ This outpass request was rejected — UUID cannot be used for verification
+                        ❌ This outpass request was rejected
                       </p>
+                      {request.rejection_reason && (
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Reason:</span> {request.rejection_reason}
+                        </p>
+                      )}
+                      {request.rejected_at && (
+                        <p className="text-xs text-muted-foreground">
+                          Rejected on: {new Date(request.rejected_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -602,6 +624,26 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
           )}
         </div>
       </div>
+
+      {/* QR Code Dialog */}
+      <Dialog open={!!showQrDialog} onOpenChange={() => setShowQrDialog(null)}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle>Outpass QR Code</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="bg-white p-4 rounded-lg">
+              <QRCodeSVG value={showQrDialog || ""} size={200} level="H" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Show this QR code at the security gate for verification
+            </p>
+            <code className="text-xs font-mono bg-muted px-3 py-1 rounded break-all">
+              {showQrDialog}
+            </code>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
