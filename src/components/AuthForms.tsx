@@ -1,3 +1,26 @@
+/**
+ * AuthForms.tsx
+ * 
+ * TYPESCRIPT CONCEPTS IN THIS FILE:
+ * 
+ * 1. CALLBACK FUNCTION TYPES:
+ *    onBack: () => void        — function with NO parameters, returns nothing
+ *    onAuth: (userData: any) => void — function that TAKES userData param, returns nothing
+ * 
+ * 2. TYPE ASSERTION with "as":
+ *    Example: roleMap[role] as any
+ *    Forces TypeScript to treat a value as a specific type (use sparingly).
+ * 
+ * 3. React.FormEvent — Built-in React type for form submission events.
+ *    In plain JS, you'd just write (e) => { e.preventDefault(); ... }
+ * 
+ * 4. React.ChangeEvent<HTMLInputElement> — Type for input change events.
+ *    Tells TypeScript the event came from an <input> element,
+ *    so e.target.files is available.
+ * 
+ * 5. "as File | null" — Type assertion for the file upload variable.
+ */
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +32,16 @@ import { ArrowLeft, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+/**
+ * Props for AuthForms component.
+ * 
+ * onBack: () => void — Called when user clicks "Back". No arguments, no return value.
+ * onAuth: (userData: any) => void — Called after successful login with user data.
+ */
 interface AuthFormsProps {
   role: string;
-  onBack: () => void;
-  onAuth: (userData: any) => void;
+  onBack: () => void;               // Callback: no args, no return
+  onAuth: (userData: any) => void;   // Callback: takes userData, no return
 }
 
 const departments = [

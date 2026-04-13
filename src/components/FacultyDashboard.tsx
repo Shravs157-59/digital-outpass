@@ -15,6 +15,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import BulkProfileImport from "./BulkProfileImport";
 
+/**
+ * INTERFACE with NESTED OBJECT type.
+ * 
+ * "student?" — The "?" makes the entire student property optional.
+ * Inside student, each field is typed as string.
+ * 
+ * This is like saying: "A PendingRequest MAY have a student object,
+ * and if it does, it will have these specific string fields."
+ */
 interface PendingRequest {
   id: string;
   student_id: string;
@@ -23,7 +32,7 @@ interface PendingRequest {
   from_date: string;
   to_date: string;
   status: string;
-  student?: {
+  student?: {              // "?" = this whole nested object is optional
     full_name: string;
     reg_no: string;
     department: string;
@@ -33,6 +42,7 @@ interface PendingRequest {
   };
 }
 
+/** Props interface — same pattern as StudentDashboard */
 interface FacultyDashboardProps {
   userData: any;
   onLogout: () => void;
@@ -40,12 +50,38 @@ interface FacultyDashboardProps {
 
 export default function FacultyDashboard({ userData, onLogout }: FacultyDashboardProps) {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+
+  /**
+   * UNION TYPE with null:
+   * useState<PendingRequest | null>(null) means:
+   * - This state holds EITHER a PendingRequest object OR null
+   * - Starts as null (no request selected)
+   * 
+   * In plain JS: const [selectedRequest, setSelectedRequest] = useState(null)
+   */
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedPendingRequest, setSelectedPendingRequest] = useState<PendingRequest | null>(null);
+
+  /**
+   * LITERAL UNION TYPE:
+   * useState<"approve" | "reject" | null>(null) means:
+   * - This can ONLY be the exact string "approve", "reject", or null
+   * - TypeScript will error if you try to set it to "Accept" or any other string
+   * 
+   * In plain JS: const [actionType, setActionType] = useState(null)
+   */
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+
+  /**
+   * RECORD TYPE:
+   * Record<string, number> means "an object where keys are strings and values are numbers"
+   * Example: { "student-id-123": 5, "student-id-456": 2 }
+   * 
+   * In plain JS: const [previousOutpassCount, setPreviousOutpassCount] = useState({})
+   */
   const [previousOutpassCount, setPreviousOutpassCount] = useState<Record<string, number>>({});
   const [stats, setStats] = useState({
     pending: 0,

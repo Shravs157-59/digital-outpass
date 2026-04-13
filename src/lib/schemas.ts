@@ -1,3 +1,18 @@
+/**
+ * schemas.ts — Validation schemas using the Zod library.
+ * 
+ * Zod is a RUNTIME validation library (works in both JS and TS).
+ * It checks data at runtime, unlike TypeScript which only checks at compile time.
+ * 
+ * KEY CONCEPT: z.object({...}) creates a schema that validates objects.
+ * z.string() — validates that a value is a string
+ * .min(10) — string must be at least 10 characters
+ * .max(200) — string must be at most 200 characters
+ * .refine() — custom validation logic
+ * .safeParse() — validates data and returns { success, data, error }
+ * 
+ * Zod works identically in plain JavaScript — no TypeScript needed!
+ */
 import { z } from "zod";
 
 export const outpassRequestSchema = z.object({
