@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, QrCode, LogOut, User, Clock, CheckCircle, XCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { qrCodeSchema } from "@/lib/schemas";
+import QRScanner from "./QRScanner";
 
 /** Deeply nested interface — models the security log entry with related outpass data */
 interface LogEntry {
@@ -159,17 +160,26 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
     };
   }, []);
 
-  const handleQRScan = async () => {
-    const normalizedInput = qrInput.trim();
+  const handleQRScan = async (rawValue?: string) => {
+    const sourceValue = (rawValue ?? qrInput).trim();
+    // QR codes may encode either a bare UUID or a URL containing one — extract it
+    const uuidMatch = sourceValue.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+    );
+    const normalizedInput = uuidMatch ? uuidMatch[0] : sourceValue;
+
     const validation = qrCodeSchema.safeParse(normalizedInput);
     if (!validation.success) {
       toast({
         title: "Invalid UUID",
-        description: "Please enter a valid Outpass UUID",
+        description: "Please enter or scan a valid Outpass UUID",
         variant: "destructive",
       });
       return;
     }
+
+    // Reflect the scanned value in the input for transparency
+    setQrInput(validation.data);
 
     try {
       const { data, error } = await supabase.functions.invoke('verify-outpass', {
@@ -323,6 +333,17 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <QRScanner onScan={(decoded) => handleQRScan(decoded)} />
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">Or enter manually</span>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="qrInput">Outpass ID</Label>
                     <Input
@@ -333,15 +354,11 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                       onKeyPress={(e) => e.key === 'Enter' && handleQRScan()}
                     />
                   </div>
-                  
-                  <Button onClick={handleQRScan} className="w-full" size="lg">
+
+                  <Button onClick={() => handleQRScan()} className="w-full" size="lg">
                     <Search className="w-4 h-4 mr-2" />
                     Verify Outpass
                   </Button>
-                  
-                  <div className="bg-muted/50 rounded-lg p-4 text-center text-sm text-muted-foreground">
-                    📱 In production, this would use camera for QR scanning
-                  </div>
                 </CardContent>
               </Card>
 
