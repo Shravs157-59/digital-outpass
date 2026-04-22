@@ -333,6 +333,17 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <QRScanner onScan={(decoded) => handleQRScan(decoded)} />
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">Or enter manually</span>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="qrInput">Outpass ID</Label>
                     <Input
@@ -343,15 +354,11 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                       onKeyPress={(e) => e.key === 'Enter' && handleQRScan()}
                     />
                   </div>
-                  
-                  <Button onClick={handleQRScan} className="w-full" size="lg">
+
+                  <Button onClick={() => handleQRScan()} className="w-full" size="lg">
                     <Search className="w-4 h-4 mr-2" />
                     Verify Outpass
                   </Button>
-                  
-                  <div className="bg-muted/50 rounded-lg p-4 text-center text-sm text-muted-foreground">
-                    📱 In production, this would use camera for QR scanning
-                  </div>
                 </CardContent>
               </Card>
 
