@@ -160,17 +160,26 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
     };
   }, []);
 
-  const handleQRScan = async () => {
-    const normalizedInput = qrInput.trim();
+  const handleQRScan = async (rawValue?: string) => {
+    const sourceValue = (rawValue ?? qrInput).trim();
+    // QR codes may encode either a bare UUID or a URL containing one — extract it
+    const uuidMatch = sourceValue.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+    );
+    const normalizedInput = uuidMatch ? uuidMatch[0] : sourceValue;
+
     const validation = qrCodeSchema.safeParse(normalizedInput);
     if (!validation.success) {
       toast({
         title: "Invalid UUID",
-        description: "Please enter a valid Outpass UUID",
+        description: "Please enter or scan a valid Outpass UUID",
         variant: "destructive",
       });
       return;
     }
+
+    // Reflect the scanned value in the input for transparency
+    setQrInput(validation.data);
 
     try {
       const { data, error } = await supabase.functions.invoke('verify-outpass', {
