@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, QrCode, LogOut, User, Clock, CheckCircle, XCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { qrCodeSchema } from "@/lib/schemas";
+import QRScanner from "./QRScanner";
 
 /** Deeply nested interface — models the security log entry with related outpass data */
 interface LogEntry {
