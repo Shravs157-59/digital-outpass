@@ -377,7 +377,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                     <User className="w-5 h-5 text-warning" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-warning">Profile Incomplete</h3>
+                    <h2 className="font-semibold text-warning">Profile Incomplete</h2>
                     <p className="text-sm text-muted-foreground">
                       Missing: {missingFields.join(", ")}
                     </p>
@@ -581,7 +581,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-semibold text-lg">Outpass #{request.id.slice(0, 8)}</h3>
+                      <h2 className="font-semibold text-lg">Outpass #{request.id.slice(0, 8)}</h2>
                       <p className="text-muted-foreground">{request.purpose}</p>
                     </div>
                     <Badge 

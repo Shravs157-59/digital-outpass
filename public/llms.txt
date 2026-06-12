@@ -1,0 +1,9 @@
+# Lendi Institute Digital Outpass Approval System
+
+> A digital outpass approval system for Lendi Institute of Engineering and Technology that streamlines campus exit management with multi-level faculty approvals and QR-based security verification.
+
+The application provides role-based dashboards for students (request outpasses, view status, show QR), faculty (Class Incharge, HOD, Principal approvals), and security guards (scan QR codes to verify and log entry/exit).
+
+## Pages
+
+- [Home](/): Role selection landing page and entry point to the outpass system.
