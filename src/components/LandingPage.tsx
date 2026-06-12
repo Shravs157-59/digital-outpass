@@ -106,14 +106,14 @@ export default function LandingPage({ onRoleSelect }: LandingPageProps) {
           <div className="mb-12 animate-fade-in">
             <img 
               src={collegeLogo} 
-              alt="College Logo" 
+              alt="Lendi Institute of Engineering and Technology logo" 
               className="w-32 h-24 mx-auto mb-6 drop-shadow-2xl"
             />
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
-              LENDI INSTITUTE OF ENGINEERING AND TECHNOLOGY
+              Digital Outpass Approval System — Lendi Institute of Engineering and Technology
             </h1>
             <h2 className="text-3xl md:text-4xl font-semibold text-primary-light mb-6">
-              Digital Outpass Approval System
+              Streamlined Campus Exit Management
             </h2>
             <p className="text-xl text-primary-light/90 max-w-2xl mx-auto leading-relaxed">
               Streamlined digital outpass approval system for seamless campus exit management
