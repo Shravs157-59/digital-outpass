@@ -400,29 +400,35 @@ export default function SecurityDashboard({ userData, onLogout }: SecurityDashbo
                         </div>
                         <div>
                           <p className="text-muted-foreground">Student Name</p>
-                          <p className="font-medium">{scanResult.studentName}</p>
+                          <p className="font-medium">{scanResult.studentName || 'Not available'}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Registration Number</p>
-                          <p className="font-medium">{scanResult.regNo}</p>
+                          <p className="font-medium">{scanResult.regNo || 'Not available'}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Year</p>
-                          <p className="font-medium">{scanResult.year}</p>
+                          <p className="font-medium">{scanResult.year || 'Not available'}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Department</p>
-                          <p className="font-medium">{scanResult.department}</p>
+                          <p className="font-medium">{scanResult.department || 'Not available'}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Purpose</p>
-                          <p>{scanResult.reason}</p>
+                          <p>{scanResult.reason || 'Not specified'}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Valid Period</p>
-                          <p className="text-xs">{new Date(scanResult.validFrom).toLocaleString()} to {new Date(scanResult.validTo).toLocaleString()}</p>
+                          <p className="text-xs">
+                            {scanResult.validFrom ? new Date(scanResult.validFrom).toLocaleString() : '—'}
+                            {' to '}
+                            {scanResult.validTo ? new Date(scanResult.validTo).toLocaleString() : '—'}
+                          </p>
                         </div>
-                        <Badge className="bg-success text-success-foreground">{scanResult.status.toUpperCase()}</Badge>
+                        <Badge className="bg-success text-success-foreground">
+                          {(scanResult.status || 'approved').toUpperCase()}
+                        </Badge>
                       </div>
                       
                       <div className="flex space-x-2 pt-4">
