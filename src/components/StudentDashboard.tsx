@@ -594,26 +594,36 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                     </Badge>
                   </div>
 
-                  {/* Outpass UUID - always visible */}
-                  <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-muted/50 border">
-                    <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">Outpass Verification ID</p>
-                      <code className="text-sm font-mono break-all">{request.id}</code>
+                  {/* Outpass UUID - only visible after approval */}
+                  {request.status === "approved" ? (
+                    <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-success/5 border border-success/30">
+                      <ShieldCheck className="w-4 h-4 text-success shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground">Approved Outpass Verification ID</p>
+                        <code className="text-sm font-mono break-all">{request.id}</code>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 h-8 w-8"
+                        onClick={() => copyToClipboard(request.id)}
+                        aria-label="Copy outpass UUID"
+                      >
+                        {copiedId === request.id ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 h-8 w-8"
-                      onClick={() => copyToClipboard(request.id)}
-                    >
-                      {copiedId === request.id ? (
-                        <Check className="w-4 h-4 text-success" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-muted/30 border border-dashed">
+                      <ShieldCheck className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <p className="text-xs text-muted-foreground">
+                        Verification ID will appear here once your request is approved.
+                      </p>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
