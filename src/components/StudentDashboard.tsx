@@ -581,7 +581,9 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2 className="font-semibold text-lg">Outpass #{request.id.slice(0, 8)}</h2>
+                      <h2 className="font-semibold text-lg">
+                        Outpass Request — {new Date(request.created_at).toLocaleDateString()}
+                      </h2>
                       <p className="text-muted-foreground">{request.purpose}</p>
                     </div>
                     <Badge 
@@ -689,7 +691,7 @@ export default function StudentDashboard({ userData, onLogout }: StudentDashboar
                   {request.status === "pending" && (
                     <div className="bg-warning/10 border border-warning/20 rounded-md p-3 mt-4">
                       <p className="text-sm text-warning font-medium">
-                        ⏳ Awaiting faculty approval — UUID will be valid for security verification once approved
+                        ⏳ Awaiting faculty approval — your verification ID will be issued once approved
                       </p>
                     </div>
                   )}
