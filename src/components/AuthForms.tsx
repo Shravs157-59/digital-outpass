@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { describeAuthError } from "@/lib/authErrors";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -175,7 +176,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
       if (signUpError) {
         toast({
           title: "Registration Failed",
-          description: signUpError.message,
+          description: describeAuthError(signUpError, "register"),
           variant: "destructive"
         });
         setIsLoading(false);
@@ -241,7 +242,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
         console.error('Profile update error:', profileError);
         toast({
           title: "Registration Failed",
-          description: profileError.message,
+          description: describeAuthError(profileError, "register"),
           variant: "destructive"
         });
         setIsLoading(false);
@@ -269,7 +270,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "An unexpected error occurred",
+        description: describeAuthError(error, "login"),
         variant: "destructive"
       });
     } finally {
@@ -290,7 +291,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
       if (error) {
         toast({
           title: "Login Failed",
-          description: error.message,
+          description: describeAuthError(error, "login"),
           variant: "destructive"
         });
         setIsLoading(false);
@@ -300,7 +301,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
       if (!data.user) {
         toast({
           title: "Login Failed",
-          description: "Invalid credentials",
+          description: "Invalid email or password.",
           variant: "destructive"
         });
         setIsLoading(false);
@@ -316,8 +317,8 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
 
       if (profileError) {
         toast({
-          title: "Error",
-          description: "Failed to load user profile",
+          title: "Profile Not Loaded",
+          description: describeAuthError(profileError, "profile"),
           variant: "destructive"
         });
         setIsLoading(false);
@@ -381,7 +382,7 @@ export default function AuthForms({ role, onBack, onAuth }: AuthFormsProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "An unexpected error occurred",
+        description: describeAuthError(error, "login"),
         variant: "destructive"
       });
     } finally {
